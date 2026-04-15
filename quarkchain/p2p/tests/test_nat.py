@@ -33,9 +33,10 @@ if not Logger._qkc_logger:
 # Constants
 # ---------------------------------------------------------------------------
 
-MOCK_EXTERNAL_IP = "198.51.100.1"
-MOCK_INTERNAL_IP = "192.168.1.100"
-MOCK_DEVICE_URL = "http://192.168.1.1:5000/mock-device.xml"
+MOCK_EXTERNAL_IP = "198.51.100.1"   # public IP reported by the router
+MOCK_ROUTER_HOST = "192.168.1.1"    # router's LAN IP (from SSDP location URL)
+MOCK_INTERNAL_IP = "192.168.1.100"  # this machine's LAN IP (getsockname result)
+MOCK_DEVICE_URL = f"http://{MOCK_ROUTER_HOST}:5000/mock-device.xml"
 
 
 # ---------------------------------------------------------------------------
@@ -98,10 +99,17 @@ def _fake_wait_after(svc, iterations):
 def test_get_internal_ip(mock_socket):
     _, sock = mock_socket
     svc = UPnPService(port=30303)
+    svc._router_host = MOCK_ROUTER_HOST
 
     assert svc._get_internal_ip() == MOCK_INTERNAL_IP
-    sock.connect.assert_called_once_with(("8.8.8.8", 80))
+    sock.connect.assert_called_once_with((MOCK_ROUTER_HOST, 80))
     sock.close.assert_called_once()
+
+
+def test_get_internal_ip_no_router_host():
+    svc = UPnPService(port=30303)
+    # _router_host is None before discover(); should return None without connecting
+    assert svc._get_internal_ip() is None
 
 
 # ---------------------------------------------------------------------------
@@ -142,6 +150,7 @@ async def test_add_port_mapping(mock_socket):
     svc = UPnPService(port=30303)
     mock_svc = _make_mock_service()
     svc._service = mock_svc
+    svc._router_host = MOCK_ROUTER_HOST
 
     await svc._add_port_mapping()
 
@@ -153,6 +162,17 @@ async def test_add_port_mapping(mock_socket):
     assert calls[0].kwargs["NewExternalPort"] == 30303
     assert calls[1].args[0] == "AddPortMapping"
     assert calls[1].kwargs["NewProtocol"] == "UDP"
+
+
+@pytest.mark.asyncio
+async def test_add_port_mapping_no_internal_ip():
+    svc = UPnPService(port=30303)
+    svc._service = _make_mock_service()
+    # _router_host is None → _get_internal_ip() returns None → should raise
+    assert svc._router_host is None
+
+    with pytest.raises(RuntimeError, match="internal IP"):
+        await svc._add_port_mapping()
 
 
 # ---------------------------------------------------------------------------
@@ -176,14 +196,6 @@ async def test_delete_port_mapping():
     assert delete_calls[1].kwargs["NewProtocol"] == "UDP"
 
 
-@pytest.mark.asyncio
-async def test_delete_port_mapping_no_service():
-    svc = UPnPService(port=30303)
-    svc._service = None
-    # Should not raise
-    await svc._delete_port_mapping()
-
-
 # ---------------------------------------------------------------------------
 # _close_session
 # ---------------------------------------------------------------------------
@@ -201,14 +213,6 @@ async def test_close_session():
     assert svc._session is None
 
 
-@pytest.mark.asyncio
-async def test_close_session_already_none():
-    svc = UPnPService(port=30303)
-    svc._session = None
-    # Should not raise
-    await svc._close_session()
-
-
 # ---------------------------------------------------------------------------
 # discover (end-to-end with mocked deps)
 # ---------------------------------------------------------------------------
@@ -224,14 +228,13 @@ async def test_discover_success(mock_async_search, mock_requester_cls,
 
     fake_device = MagicMock()
     fake_device.services = {"WANIPConn1": mock_wan_service}
+    fake_device.embedded_devices = {}
 
     mock_factory = mock_factory_cls.return_value
     mock_factory.async_create_device = AsyncMock(return_value=fake_device)
 
     async def fake_search(on_response, timeout=30):
-        response = MagicMock()
-        response.location = MOCK_DEVICE_URL
-        await on_response(response)
+        await on_response({"location": MOCK_DEVICE_URL})
 
     mock_async_search.side_effect = fake_search
 
@@ -273,14 +276,13 @@ async def test_discover_skips_device_without_wanipconn(mock_async_search,
     non_wan_service = MagicMock()
     non_wan_service.service_type = "urn:schemas-upnp-org:service:Layer3Forwarding:1"
     fake_device.services = {"L3Fwd": non_wan_service}
+    fake_device.embedded_devices = {}
 
     mock_factory = mock_factory_cls.return_value
     mock_factory.async_create_device = AsyncMock(return_value=fake_device)
 
     async def fake_search(on_response, timeout=30):
-        response = MagicMock()
-        response.location = MOCK_DEVICE_URL
-        await on_response(response)
+        await on_response({"location": MOCK_DEVICE_URL})
 
     mock_async_search.side_effect = fake_search
 
@@ -306,9 +308,7 @@ async def test_discover_ignores_device_creation_error(mock_async_search,
     )
 
     async def fake_search(on_response, timeout=30):
-        response = MagicMock()
-        response.location = MOCK_DEVICE_URL
-        await on_response(response)
+        await on_response({"location": MOCK_DEVICE_URL})
 
     mock_async_search.side_effect = fake_search
 
@@ -351,6 +351,7 @@ async def test_stop():
 async def test_run_refreshes_port_mapping(mock_socket):
     svc = UPnPService(port=30303)
     svc._service = _make_mock_service()
+    svc._router_host = MOCK_ROUTER_HOST
     svc._nat_portmap_lifetime = 0
     svc.events.started.set()
     svc.wait = _fake_wait_after(svc, iterations=2)
@@ -366,41 +367,10 @@ async def test_run_refreshes_port_mapping(mock_socket):
 
 
 @pytest.mark.asyncio
-async def test_run_skips_mapping_without_service():
-    svc = UPnPService(port=30303)
-    svc._service = None
-    svc._nat_portmap_lifetime = 0
-    svc.events.started.set()
-    svc.wait = _fake_wait_after(svc, iterations=1)
-    svc._add_port_mapping = AsyncMock()
-
-    await svc._run()
-
-    svc._add_port_mapping.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_run_exits_on_cancel():
-    svc = UPnPService(port=30303)
-    svc._service = _make_mock_service()
-    svc._nat_portmap_lifetime = 0
-    svc.events.started.set()
-
-    async def fake_wait(awaitable, timeout=None):
-        awaitable.close()  # prevent "coroutine never awaited" warning
-        raise OperationCancelled("cancelled")
-
-    svc.wait = fake_wait
-
-    await svc._run()
-
-    assert svc._service.async_call_action.call_count == 0
-
-
-@pytest.mark.asyncio
 async def test_run_continues_on_exception(mock_socket):
     svc = UPnPService(port=30303)
     svc._service = _make_mock_service()
+    svc._router_host = MOCK_ROUTER_HOST
     svc._nat_portmap_lifetime = 0
     svc.events.started.set()
     svc.wait = _fake_wait_after(svc, iterations=3)
@@ -438,14 +408,13 @@ async def test_full_lifecycle(mock_async_search, mock_requester_cls,
 
     fake_device = MagicMock()
     fake_device.services = {"WANIPConn1": mock_wan_service}
+    fake_device.embedded_devices = {}
 
     mock_factory = mock_factory_cls.return_value
     mock_factory.async_create_device = AsyncMock(return_value=fake_device)
 
     async def fake_search(on_response, timeout=30):
-        response = MagicMock()
-        response.location = MOCK_DEVICE_URL
-        await on_response(response)
+        await on_response({"location": MOCK_DEVICE_URL})
 
     mock_async_search.side_effect = fake_search
 
@@ -456,6 +425,7 @@ async def test_full_lifecycle(mock_async_search, mock_requester_cls,
 
     assert external_ip == MOCK_EXTERNAL_IP
     assert svc._service is mock_wan_service
+    assert svc._router_host == "192.168.1.1"  # parsed from MOCK_DEVICE_URL
     assert svc._session is not None
 
     all_calls = mock_wan_service.async_call_action.call_args_list

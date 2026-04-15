@@ -3,6 +3,7 @@ import asyncio
 import socket
 from contextlib import suppress
 from typing import Optional
+from urllib.parse import urlparse
 
 from quarkchain.p2p.cancel_token.token import CancelToken, OperationCancelled
 from quarkchain.p2p.service import BaseService
@@ -33,6 +34,7 @@ class UPnPService(BaseService):
         self.port = port
         self._session = None
         self._service = None
+        self._router_host = None
         self._discover_lock = asyncio.Lock()
 
 
@@ -133,6 +135,7 @@ class UPnPService(BaseService):
                 for service in _iter_services(device):
                     if "WANIPConn" in service.service_type:
                         self._service = service
+                        self._router_host = urlparse(location).hostname
                         self.logger.info("Found UPnP WANIP service")
                         found.set()
                         return
@@ -153,6 +156,8 @@ class UPnPService(BaseService):
 
     async def _add_port_mapping(self) -> None:
         internal_ip = self._get_internal_ip()
+        if not internal_ip:
+            raise RuntimeError("Failed to find internal IP address for UPnP port mapping")
 
         self.logger.info(
             f"Adding port mapping {self.port}->{internal_ip}:{self.port}"
@@ -176,6 +181,7 @@ class UPnPService(BaseService):
                         NewPortMappingDescription=description,
                         NewLeaseDuration=self._nat_portmap_lifetime,
                     )
+                    protocols_added.append(protocol)
                 except UpnpActionResponseError as e:
                     if e.error_code == 718:
                         # ConflictInMappingEntry: an entry already exists (e.g. previous run
@@ -186,7 +192,6 @@ class UPnPService(BaseService):
                         )
                     else:
                         raise
-                protocols_added.append(protocol)
         except Exception:
             # Roll back any mappings that succeeded before the failure.
             for protocol in protocols_added:
@@ -226,20 +231,21 @@ class UPnPService(BaseService):
             return None
 
 
-    def _get_internal_ip(self) -> str:
-        """
-        Robust internal IP detection using socket trick.
-        """
+    def _get_internal_ip(self) -> Optional[str]:
+        if not self._router_host:
+            return None
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         try:
-            s.connect(("8.8.8.8", 80))
+            s.connect((self._router_host, 80))
             return s.getsockname()[0]
+        except Exception as e:
+            self.logger.warning(f"Failed to find internal IP: {e}")
+            return None
         finally:
             s.close()
 
 
 if __name__ == "__main__":
-    import logging
     import argparse
 
     from quarkchain.utils import Logger
@@ -252,18 +258,12 @@ if __name__ == "__main__":
     async def main():
         svc = UPnPService(port=args.port)
 
-        # Test _get_internal_ip
-        internal_ip = svc._get_internal_ip()
-        print(f"Internal IP: {internal_ip}")
-
-        # Test _get_external_ip (without UPnP, falls back to None)
-        external_ip_before = await svc._get_external_ip()
-        print(f"External IP (before discover): {external_ip_before}")
-
         # Test UPnP discover + port mapping
         print(f"\nDiscovering UPnP devices (timeout {UPNP_DISCOVER_TIMEOUT_SECONDS}s)...")
         external_ip = await svc.discover()
         if external_ip:
+            internal_ip = svc._get_internal_ip()
+            print(f"Internal IP: {internal_ip}")
             print(f"External IP: {external_ip}")
             print(f"Port {args.port} mapped successfully")
             input("Press Enter to remove mapping and exit...")
