@@ -13,7 +13,9 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install Project Dependencies
-      run: pip3 install --upgrade pip && PYTHONPATH=/code/pyquarkchain pip3 install -e .
+      run:  |
+        pip3 install --upgrade pip && PYTHONPATH=/code/pyquarkchain pip3 install -e .
+        python3 setup.py build_ext --inplace
 
     - name: Run py.test tests excluding integration test
       run: |

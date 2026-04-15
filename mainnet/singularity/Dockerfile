@@ -9,6 +9,9 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     g++ \
     make \
     git \
+    python3-dev \
+    pkg-config \
+    libssl-dev \
     libbz2-dev \
     libgflags-dev \
     liblz4-dev \
@@ -19,9 +22,18 @@ RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     vim \
   && rm -rf /var/lib/apt/lists/*
 
-# Install Rust toolchain (needed to build the ethash_rs extension)
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable --profile minimal
+# Python
+RUN pip install --upgrade pip
+
+# Rust
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
+ENV CARGO_HOME=/root/.cargo
+ENV RUSTUP_HOME=/root/.rustup
+
+RUN rustup toolchain install stable
+RUN rustup default stable
+RUN rustc --version && cargo --version
 
 # set up code
 RUN mkdir /code
