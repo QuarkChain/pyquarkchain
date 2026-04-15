@@ -1,5 +1,4 @@
 import importlib
-import logging
 import os
 import numpy as np
 from functools import lru_cache
@@ -10,9 +9,6 @@ from ethereum.pow.ethash_utils import (
     FNV_PRIME, HASH_BYTES, WORD_BYTES, MIX_BYTES,
     DATASET_PARENTS, CACHE_ROUNDS, ACCESSES, EPOCH_LENGTH,
 )
-
-# uint32 overflow is intentional in FNV arithmetic
-np.seterr(over="ignore")
 
 _FNV_PRIME = np.uint32(FNV_PRIME)
 
@@ -59,13 +55,13 @@ elif ETHASH_LIB != "ethash":
     raise ValueError(f"Unknown ETHASH_LIB={ETHASH_LIB!r}. "
                      f"Use 'ethash', 'ethash_cy', 'ethash_rs', or 'auto'.")
 
-logging.getLogger(__name__).info("ethash implementation: %s", ETHASH_LIB)
+print(f"[ethash] using implementation: {ETHASH_LIB}")
 
 
 cache_seeds = [b"\x00" * 32]  # type: List[bytes]
 
 
-@lru_cache(2)
+@lru_cache(10)
 def _get_cache(seed: bytes, n: int) -> np.ndarray:
     """Returns cache as uint32 ndarray of shape (n, 16)."""
     if _impl_mkcache is not None:
@@ -112,10 +108,12 @@ def calc_dataset_item(cache: np.ndarray, i: int) -> np.ndarray:
         _mix_parents_fn(mix, cache, i)
     else:
         r = HASH_BYTES // WORD_BYTES   # 16
-        for j in range(DATASET_PARENTS):
-            cache_index = ((i ^ j) * FNV_PRIME ^ int(mix[j % r])) & 0xFFFFFFFF
-            mix *= _FNV_PRIME
-            mix ^= cache[cache_index % n]
+        # uint32 overflow is intentional in FNV arithmetic
+        with np.errstate(over="ignore"):
+            for j in range(DATASET_PARENTS):
+                cache_index = ((i ^ j) * FNV_PRIME ^ int(mix[j % r])) & 0xFFFFFFFF
+                mix *= _FNV_PRIME
+                mix ^= cache[cache_index % n]
     return ethash_sha3_512(mix)
 
 
@@ -142,18 +140,20 @@ def hashimoto(
     s0 = int(s[0])
     newdata = np.empty(w, dtype=np.uint32)
 
-    for i in range(ACCESSES):
-        p = ((i ^ s0) * FNV_PRIME ^ int(mix[i % w])) & 0xFFFFFFFF
-        p = p % (n // mixhashes) * mixhashes
-        for j in range(mixhashes):
-            newdata[j * 16:(j + 1) * 16] = dataset_lookup(p + j)
-        mix *= _FNV_PRIME
-        mix ^= newdata
+    # uint32 overflow is intentional in FNV arithmetic
+    with np.errstate(over="ignore"):
+        for i in range(ACCESSES):
+            p = ((i ^ s0) * FNV_PRIME ^ int(mix[i % w])) & 0xFFFFFFFF
+            p = p % (n // mixhashes) * mixhashes
+            for j in range(mixhashes):
+                newdata[j * 16:(j + 1) * 16] = dataset_lookup(p + j)
+            mix *= _FNV_PRIME
+            mix ^= newdata
 
-    mix_r = mix.reshape(-1, 4)
-    cmix = mix_r[:, 0] * _FNV_PRIME ^ mix_r[:, 1]
-    cmix = cmix * _FNV_PRIME ^ mix_r[:, 2]
-    cmix = cmix * _FNV_PRIME ^ mix_r[:, 3]
+        mix_r = mix.reshape(-1, 4)
+        cmix = mix_r[:, 0] * _FNV_PRIME ^ mix_r[:, 1]
+        cmix = cmix * _FNV_PRIME ^ mix_r[:, 2]
+        cmix = cmix * _FNV_PRIME ^ mix_r[:, 3]
 
     s_cmix = np.concatenate([s, cmix])
     return {

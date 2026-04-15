@@ -132,10 +132,7 @@ class TestEthash(unittest.TestCase):
 
     def test_cython_matches_python_fallback(self):
         """numpy and Cython implementations both match the original hex-based baseline."""
-        try:
-            from ethereum.pow.ethash_cy import cy_calc_dataset_item, cy_hashimoto_light
-        except ImportError:
-            self.skipTest("Cython extension not built")
+        from ethereum.pow.ethash_cy import cy_calc_dataset_item, cy_hashimoto_light
 
         from ethereum.pow.ethash import calc_dataset_item, hashimoto
         from ethereum.pow.tests import old_ethash
@@ -170,10 +167,7 @@ class TestEthash(unittest.TestCase):
 
     def test_rust_matches_python_fallback(self):
         """Rust (ethash_rs) implementation matches the original hex-based baseline."""
-        try:
-            from ethereum.pow.ethash_rs import rs_calc_dataset_item, rs_hashimoto_light
-        except ImportError:
-            self.skipTest("Rust extension not built (run: python setup.py build_ext --inplace)")
+        from ethereum.pow.ethash_rs import rs_calc_dataset_item, rs_hashimoto_light
 
         from ethereum.pow.ethash import calc_dataset_item, hashimoto
         from ethereum.pow.tests import old_ethash

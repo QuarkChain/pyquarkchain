@@ -27,17 +27,17 @@ FNV_PRIME = 0x01000193
 
 
 def ethash_sha3_512(x: Union[bytes, np.ndarray]) -> np.ndarray:
-    """sha3-512: bytes or ndarray in, uint32 ndarray (16,) out."""
+    """sha3-512: bytes or ndarray in, little-endian uint32 ndarray (16,) out."""
     if isinstance(x, np.ndarray):
         x = x.tobytes()
-    return np.frombuffer(_sha3_512(x), dtype=np.uint32).copy()
+    return np.frombuffer(_sha3_512(x), dtype="<u4").copy()
 
 
 def ethash_sha3_256(x: Union[bytes, np.ndarray]) -> np.ndarray:
-    """sha3-256: bytes or ndarray in, uint32 ndarray (8,) out."""
+    """sha3-256: bytes or ndarray in, little-endian uint32 ndarray (8,) out."""
     if isinstance(x, np.ndarray):
         x = x.tobytes()
-    return np.frombuffer(_sha3_256(x), dtype=np.uint32).copy()
+    return np.frombuffer(_sha3_256(x), dtype="<u4").copy()
 
 
 def isprime(x):
