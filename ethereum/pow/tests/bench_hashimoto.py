@@ -393,3 +393,4 @@ if __name__ == "__main__":
         check_pow(1, _cp_header, _cp_mix, _cp_nonce, 100, is_test=True)
     t_cp = time.perf_counter() - t0
     print(f"  x{N3}: {t_cp:.4f}s  ({t_cp/N3*1000:.1f}ms/call)")
+
