@@ -55,6 +55,8 @@ class UPnPService(BaseService):
         """
         async with self._discover_lock:
             await self._close_session()
+            self._service = None
+            self._router_host = None
             self._session = aiohttp.ClientSession()
             try:
                 await self._discover(self._session)
