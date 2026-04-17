@@ -155,6 +155,7 @@ def hashimoto(
         cmix = cmix * _FNV_PRIME ^ mix_r[:, 2]
         cmix = cmix * _FNV_PRIME ^ mix_r[:, 3]
 
+    cmix = cmix.astype("<u4", copy=False)
     s_cmix = np.concatenate([s, cmix])
     return {
         b"mix digest": cmix.tobytes(),
