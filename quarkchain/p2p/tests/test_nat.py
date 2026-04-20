@@ -1,27 +1,8 @@
-import asyncio
 import socket
 import pytest
 from unittest.mock import MagicMock, AsyncMock, patch
 
 from quarkchain.p2p.cancel_token.token import OperationCancelled
-
-# CancelToken uses deprecated asyncio.Event(loop=loop) removed in py3.10+,
-# patch it to ignore the loop kwarg
-import quarkchain.p2p.cancel_token.token as _ct
-
-_OrigCancelToken = _ct.CancelToken
-
-
-class _PatchedCancelToken(_OrigCancelToken):
-    def __init__(self, name, loop=None):
-        self.name = name
-        self._chain = []
-        self._triggered = asyncio.Event()
-        self._loop = None
-
-
-_ct.CancelToken = _PatchedCancelToken
-
 from quarkchain.p2p.nat import UPnPService
 
 from quarkchain.utils import Logger
