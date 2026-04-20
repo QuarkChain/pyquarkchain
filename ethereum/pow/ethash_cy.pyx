@@ -187,6 +187,8 @@ def cy_hashimoto_light(Py_ssize_t full_size,
     # nonce_rev = nonce[::-1]
     cdef Py_ssize_t header_len = header.shape[0]
     cdef Py_ssize_t nonce_len = nonce.shape[0]
+    if header_len + nonce_len > 128:
+        raise ValueError("header + nonce too large")
     cdef uint8_t seed_buf[128]  # header (up to ~80) + nonce (8)
     memcpy(seed_buf, &header[0], header_len)
     # reverse nonce

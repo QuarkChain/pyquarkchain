@@ -1,7 +1,7 @@
 /** libkeccak-tiny
  *
  * A single-file implementation of SHA-3 and SHAKE.
- * Copied from https://github.com/coruus/keccak-tiny
+ * Copied from https://github.com/coruus/keccak-tiny/tree/64b6647514212b76ae7bca0dea9b7b197d1d8186
  *
  * Implementor: David Leon Gil
  * License: CC0, attribution kindly requested. Blame taken too,
