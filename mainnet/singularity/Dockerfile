@@ -1,59 +1,68 @@
 FROM python:3.13-slim
 LABEL maintainer="quarkchain"
 
-# install rocksdb and build tools (including Rust build deps)
-RUN apt-get update && apt-get upgrade -y && apt-get install -y \
-    build-essential \
-    curl \
-    gcc \
-    g++ \
-    make \
+# PREBUILT=true: download pre-built native extensions from S3 (smaller image, faster build)
+# PREBUILT=false: install build tools + Rust and compile extensions locally
+ARG PREBUILT=false
+
+RUN apt-get update && apt-get install -y \
     git \
-    python3-dev \
-    pkg-config \
-    libssl-dev \
-    libbz2-dev \
-    libgflags-dev \
-    liblz4-dev \
+    curl \
+    libssl3 \
+    libbz2-1.0 \
+    libgflags2.2 \
+    liblz4-1 \
     librocksdb-dev \
-    libsnappy-dev \
-    libzstd-dev \
-    zlib1g-dev \
+    libsnappy1v5 \
+    libzstd1 \
+    zlib1g \
     vim \
+  && if [ "$PREBUILT" != "true" ]; then \
+       apt-get install -y \
+         build-essential \
+         gcc \
+         g++ \
+         make \
+         python3-dev \
+         pkg-config \
+         libssl-dev \
+         libbz2-dev \
+         libgflags-dev \
+         liblz4-dev \
+         libsnappy-dev \
+         libzstd-dev \
+         zlib1g-dev; \
+     fi \
   && rm -rf /var/lib/apt/lists/*
 
-# Python
 RUN pip install --upgrade pip
 
-# Rust
-RUN curl https://sh.rustup.rs -sSf | sh -s -- -y
-ENV PATH="/root/.cargo/bin:${PATH}"
-ENV CARGO_HOME=/root/.cargo
-ENV RUSTUP_HOME=/root/.rustup
-
-RUN rustup toolchain install stable
-RUN rustup default stable
-RUN rustc --version && cargo --version
-
-# set up code
-RUN mkdir /code
-WORKDIR /code
-RUN git clone https://github.com/QuarkChain/pyquarkchain.git
-
-# switch to target tag
+RUN git clone https://github.com/QuarkChain/pyquarkchain.git /code/pyquarkchain
 WORKDIR /code/pyquarkchain
-ARG GIT_TAG
-RUN echo "checkout to $GIT_TAG"
-RUN git checkout $GIT_TAG
 
-# Python dependencies
+ARG GIT_TAG
+RUN echo "checkout to $GIT_TAG" && git checkout $GIT_TAG
+
 RUN pip install -r requirements.txt
 
-# Build Cython and Rust extensions in-place (ethash acceleration)
-RUN python setup.py build_ext --inplace
+RUN if [ "$PREBUILT" != "true" ]; then \
+      curl https://sh.rustup.rs -sSf | sh -s -- -y \
+      && export PATH="/root/.cargo/bin:$PATH" \
+      && rustup toolchain install stable \
+      && rustup default stable \
+      && python setup.py build_ext --inplace; \
+    fi
 
-# add qkchash c++ lib
-ADD https://s3-us-west-2.amazonaws.com/pyqkcmainnet/libqkchash.so /code/pyquarkchain/qkchash/
+# prebuilt mode: download pre-built ethash extensions from S3
+RUN if [ "$PREBUILT" = "true" ]; then \
+      curl -fsSL https://s3-us-west-2.amazonaws.com/pyqkcmainnet/ethash_cy.cpython-313-x86_64-linux-gnu.so \
+           -o /code/pyquarkchain/ethereum/pow/ethash_cy.cpython-313-x86_64-linux-gnu.so \
+      && curl -fsSL https://s3-us-west-2.amazonaws.com/pyqkcmainnet/ethash_rs.cpython-313-x86_64-linux-gnu.so \
+           -o /code/pyquarkchain/ethereum/pow/ethash_rs.cpython-313-x86_64-linux-gnu.so; \
+    fi
+
+ADD https://s3-us-west-2.amazonaws.com/pyqkcmainnet/libqkchash.so \
+    /code/pyquarkchain/qkchash/
 
 EXPOSE 22 38291 38391 38491
 ENV PYTHONPATH=/code/pyquarkchain
