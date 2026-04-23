@@ -413,46 +413,51 @@ async def create_test_clusters(
     return cluster_list
 
 
-async def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0):
-    # allow pending RPCs to finish to avoid annoying connection reset error messages
+async def shutdown_clusters(cluster_list, expect_aborted_rpc_count=0, pre_tasks=None):
+    """Shutdown clusters gracefully without affecting test framework tasks"""
+    
+    # Allow pending RPCs to finish
     await asyncio.sleep(0.1)
-
+    
     for cluster in cluster_list:
-        # Shutdown simple network first
         await cluster.network.shutdown()
-
-    # Sleep 0.1 so that DESTROY_CLUSTER_PEER_ID command could be processed
+    
+    # Sleep to allow cleanup messages to be processed
     await asyncio.sleep(0.1)
-
+    
     try:
-        # Close all connections BEFORE calling shutdown() to ensure tasks are cancelled
+        # Close connections first
         for cluster in cluster_list:
             for slave in cluster.slave_list:
                 slave.master.close()
             for slave in cluster.master.slave_pool:
                 slave.close()
-
-        # Give cancelled tasks a moment to clean up
+        
+        # Give tasks a moment to process cancellations
         await asyncio.sleep(0.05)
-
-        # Shut down master and slaves, then wait for shutdown futures
+        
+        # Shut down servers
         for cluster in cluster_list:
             cluster.master.shutdown()
             for slave in cluster.slave_list:
                 slave.shutdown()
-
+        
+        # Wait for clean shutdown
         for cluster in cluster_list:
             await cluster.master.get_shutdown_future()
             for slave in cluster.slave_list:
                 await slave.get_shutdown_future()
                 if hasattr(slave, 'server') and slave.server:
                     await slave.server.wait_closed()
-
+        
         check(expect_aborted_rpc_count == AbstractConnection.aborted_rpc_count)
     finally:
-        # Always cancel remaining tasks, even if check() fails
+        # Only cancel remaining leaked tasks, not test framework tasks
         current = asyncio.current_task()
-        pending = [t for t in asyncio.all_tasks() if not t.done() and t is not current]
+        pending = [
+            t for t in asyncio.all_tasks() 
+            if not t.done() and t is not current and (pre_tasks is None or t not in pre_tasks)
+        ]
         for task in pending:
             task.cancel()
         if pending:
@@ -495,6 +500,7 @@ class ClusterContext:
         check(is_p2(self.shard_size))
 
     async def __aenter__(self):
+        self._pre_tasks = asyncio.all_tasks()
         self.cluster_list = await create_test_clusters(
             self.num_cluster,
             self.genesis_account,
@@ -513,7 +519,7 @@ class ClusterContext:
         return self.cluster_list
 
     async def __aexit__(self, exc_type, exc_val, traceback):
-        await shutdown_clusters(self.cluster_list)
+        await shutdown_clusters(self.cluster_list, pre_tasks=self._pre_tasks)
 
 
 def mock_pay_native_token_as_gas(mock=None):

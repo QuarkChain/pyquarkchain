@@ -74,28 +74,6 @@ def crash():
     p[0] = b"x"
 
 
-def _get_or_create_event_loop():
-    """Get the running event loop, or create and set a new one if none is running.
-
-    In Python 3.12+, asyncio.get_event_loop() raises DeprecationWarning when
-    there is no current event loop. This helper uses get_running_loop() first
-    and falls back to creating a new loop for sync contexts.
-    """
-    try:
-        return asyncio.get_running_loop()
-    except RuntimeError:
-        pass
-    try:
-        loop = asyncio.get_event_loop()
-        if not loop.is_closed():
-            return loop
-    except RuntimeError:
-        pass
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-    return loop
-
-
 async def async_assert_true_with_timeout(f, duration=3):
     deadline = time.time() + duration
     while not f() and time.time() < deadline:
