@@ -117,12 +117,17 @@ class RpcMethods:
             sig = inspect.signature(handler)
             pass_context = context is not None and "context" in sig.parameters
 
-            if isinstance(params, list):
-                result = await handler(*params, context=context) if pass_context else await handler(*params)
-            elif isinstance(params, dict):
-                result = await handler(**params, context=context) if pass_context else await handler(**params)
-            else:
+            try:
+                if isinstance(params, list):
+                    bound = sig.bind(*params, context=context) if pass_context else sig.bind(*params)
+                elif isinstance(params, dict):
+                    bound = sig.bind(**params, context=context) if pass_context else sig.bind(**params)
+                else:
+                    raise InvalidParams()
+            except TypeError:
                 raise InvalidParams()
+
+            result = await handler(*bound.args, **bound.kwargs)
 
             if is_notification:
                 return None
@@ -139,17 +144,6 @@ class RpcMethods:
                 "error": e.to_dict(),
                 "id": req_id,
             }
-
-        except TypeError as e:
-            # Could be missing/extra arguments → treat as invalid params
-            return {
-                "jsonrpc": "2.0",
-                "error": {
-                    "code": -32602,
-                    "message": str(e),
-                },
-                "id": req_id,
-            }
         except Exception:
             logger.exception("Internal JSON-RPC error for method %s", method)
             return {
@@ -160,14 +154,3 @@ class RpcMethods:
                 },
                 "id": req_id,
             }
-
-    async def aiohttp_handler(self, request: web.Request) -> web.Response:
-        body = await request.json()
-
-        # support batch
-        if isinstance(body, list):
-            responses = [await self.dispatch(item) for item in body]
-            return web.json_response(responses)
-
-        response = await self.dispatch(body)
-        return web.json_response(response)

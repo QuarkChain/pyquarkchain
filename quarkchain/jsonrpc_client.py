@@ -18,10 +18,14 @@ class JsonRpcClient:
         self.client = httpx.Client(base_url=url, timeout=timeout)
 
     def call(self, method, *params):
+        if len(params) == 1 and isinstance(params[0], (dict, list)):
+            rpc_params = params[0]
+        else:
+            rpc_params = list(params)
         payload = {
             "jsonrpc": "2.0",
             "method": method,
-            "params": list(params),
+            "params": rpc_params,
             "id": str(uuid.uuid4()),
         }
 
@@ -43,12 +47,6 @@ class AsyncJsonRpcClient:
         self.client = httpx.AsyncClient(base_url=url, timeout=timeout)
 
     async def call(self, method, *params):
-        # JSON-RPC "params" can be a list (positional) or dict (named).
-        # The old jsonrpcclient library handled this internally; since we
-        # replaced it with a hand-rolled client we replicate the logic here:
-        #   call("method", [a, b])   -> params = [a, b]       (positional)
-        #   call("method", {k: v})   -> params = {k: v}       (named)
-        #   call("method", a, b)     -> params = [a, b]       (positional)
         if len(params) == 1 and isinstance(params[0], (dict, list)):
             rpc_params = params[0]
         else:
