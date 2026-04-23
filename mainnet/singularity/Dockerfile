@@ -31,7 +31,7 @@ RUN pip install -r requirements.txt
 # ---- prebuilt-false: compile extensions from source ----
 FROM base AS prebuilt-false
 
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     build-essential \
     gcc \
     g++ \
