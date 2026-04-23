@@ -1,9 +1,8 @@
-FROM python:3.13-slim
-LABEL maintainer="quarkchain"
-
-# PREBUILT=true: download pre-built native extensions from S3 (smaller image, faster build)
-# PREBUILT=false: install build tools + Rust and compile extensions locally
 ARG PREBUILT=false
+
+# ---- base: common runtime deps + code ----
+FROM python:3.13-slim AS base
+LABEL maintainer="quarkchain"
 
 RUN apt-get update && apt-get install -y \
     git \
@@ -17,22 +16,6 @@ RUN apt-get update && apt-get install -y \
     libzstd1 \
     zlib1g \
     vim \
-  && if [ "$PREBUILT" != "true" ]; then \
-       apt-get install -y \
-         build-essential \
-         gcc \
-         g++ \
-         make \
-         python3-dev \
-         pkg-config \
-         libssl-dev \
-         libbz2-dev \
-         libgflags-dev \
-         liblz4-dev \
-         libsnappy-dev \
-         libzstd-dev \
-         zlib1g-dev; \
-     fi \
   && rm -rf /var/lib/apt/lists/*
 
 RUN pip install --upgrade pip
@@ -45,21 +28,41 @@ RUN echo "checkout to $GIT_TAG" && git checkout $GIT_TAG
 
 RUN pip install -r requirements.txt
 
-RUN if [ "$PREBUILT" != "true" ]; then \
-      curl https://sh.rustup.rs -sSf | sh -s -- -y \
-      && export PATH="/root/.cargo/bin:$PATH" \
-      && rustup toolchain install stable \
-      && rustup default stable \
-      && python setup.py build_ext --inplace; \
-    fi
+# ---- prebuilt-false: compile extensions from source ----
+FROM base AS prebuilt-false
 
-# prebuilt mode: download pre-built ethash extensions from S3
-RUN if [ "$PREBUILT" = "true" ]; then \
-      curl -fsSL https://s3-us-west-2.amazonaws.com/pyqkcmainnet/ethash_cy.cpython-313-x86_64-linux-gnu.so \
-           -o /code/pyquarkchain/ethereum/pow/ethash_cy.cpython-313-x86_64-linux-gnu.so \
-      && curl -fsSL https://s3-us-west-2.amazonaws.com/pyqkcmainnet/ethash_rs.cpython-313-x86_64-linux-gnu.so \
-           -o /code/pyquarkchain/ethereum/pow/ethash_rs.cpython-313-x86_64-linux-gnu.so; \
-    fi
+RUN apt-get update && apt-get install -y \
+    build-essential \
+    gcc \
+    g++ \
+    make \
+    python3-dev \
+    pkg-config \
+    libssl-dev \
+    libbz2-dev \
+    libgflags-dev \
+    liblz4-dev \
+    libsnappy-dev \
+    libzstd-dev \
+    zlib1g-dev \
+  && rm -rf /var/lib/apt/lists/*
+
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y \
+  && export PATH="/root/.cargo/bin:$PATH" \
+  && rustup toolchain install stable \
+  && rustup default stable \
+  && python setup.py build_ext --inplace
+
+# ---- prebuilt-true: download pre-built extensions from S3 ----
+FROM base AS prebuilt-true
+
+RUN curl -fsSL https://s3-us-west-2.amazonaws.com/pyqkcmainnet/ethash_cy.cpython-313-x86_64-linux-gnu.so \
+         -o /code/pyquarkchain/ethereum/pow/ethash_cy.cpython-313-x86_64-linux-gnu.so \
+  && curl -fsSL https://s3-us-west-2.amazonaws.com/pyqkcmainnet/ethash_rs.cpython-313-x86_64-linux-gnu.so \
+         -o /code/pyquarkchain/ethereum/pow/ethash_rs.cpython-313-x86_64-linux-gnu.so
+
+# ---- final: selected by PREBUILT arg ----
+FROM prebuilt-${PREBUILT}
 
 ADD https://s3-us-west-2.amazonaws.com/pyqkcmainnet/libqkchash.so \
     /code/pyquarkchain/qkchash/
