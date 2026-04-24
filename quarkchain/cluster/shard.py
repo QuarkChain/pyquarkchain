@@ -394,7 +394,7 @@ class SyncTask:
                 await self.shard.add_block(block)
                 if counter % 100 == 0:
                     sync_data = (block.header.height, block_header_chain[-1])
-                    asyncio.ensure_future(notify_sync(sync_data))
+                    asyncio.create_task(notify_sync(sync_data))
                     counter = 0
                 counter += 1
                 block_header_chain.pop(0)
@@ -507,7 +507,7 @@ class Shard:
 
         self.state = ShardState(env, full_shard_id, self.__init_shard_db())
 
-        self.loop = asyncio.get_event_loop()
+        self.loop = asyncio.get_running_loop()
         self.synchronizer = Synchronizer(
             self.state.subscription_manager.notify_sync, lambda: self.state.header_tip
         )
@@ -593,9 +593,9 @@ class Shard:
                 shard=self,
                 name="{}_vconn_{}".format(master_conn.name, cluster_peer_id),
             )
-            asyncio.ensure_future(peer_shard_conn.active_and_loop_forever())
+            peer_shard_conn._loop_task = asyncio.create_task(peer_shard_conn.active_and_loop_forever())
             conns.append(peer_shard_conn)
-        await asyncio.gather(*[conn.active_future for conn in conns])
+        await asyncio.gather(*[conn.active_event.wait() for conn in conns])
         for conn in conns:
             self.add_peer(conn)
 

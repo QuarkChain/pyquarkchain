@@ -147,9 +147,9 @@ def main():
     args = parser.parse_args()
 
     if args.balanced:
-        asyncio.get_event_loop().run_until_complete(async_adjust_difficulty(args))
+        asyncio.run(async_adjust_difficulty(args))
     else:
-        asyncio.get_event_loop().run_until_complete(adjust_imbalanced_hashpower(args))
+        asyncio.run(adjust_imbalanced_hashpower(args))
 
 
 if __name__ == "__main__":

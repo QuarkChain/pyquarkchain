@@ -63,8 +63,13 @@ class TestMiner(unittest.TestCase):
         ):
             miner = self.miner_gen(consensus, create, add)
             # should generate 5 blocks and then end
-            loop = asyncio.get_event_loop()
-            loop.run_until_complete(miner._mine_new_block_async())
+
+            async def go():
+                task = miner._mine_new_block_async()
+                if task is not None:
+                    await task
+
+            asyncio.run(go())
             self.assertEqual(len(self.added_blocks), 5)
 
     def test_simulate_mine_handle_block_exception(self):
@@ -91,8 +96,13 @@ class TestMiner(unittest.TestCase):
 
         miner = self.miner_gen(ConsensusType.POW_SIMULATE, create, add)
         # only 2 blocks can be added
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(miner._mine_new_block_async())
+
+        async def go():
+            task = miner._mine_new_block_async()
+            if task is not None:
+                await task
+
+        asyncio.run(go())
         self.assertEqual(len(self.added_blocks), 2)
 
     def test_sha3sha3(self):
@@ -142,8 +152,7 @@ class TestMiner(unittest.TestCase):
             with self.assertRaises(ValueError):
                 await miner.submit_work(b"", 42, b"")
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(go())
+        asyncio.run(go())
 
     def test_get_work(self):
         now, height = 42, 42
@@ -206,8 +215,7 @@ class TestMiner(unittest.TestCase):
             self.assertEqual(len(miner.work_map), 4)
             self.assertEqual(len(miner.current_works), 2)
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(go())
+        asyncio.run(go())
 
     def test_submit_work(self):
         now, height = 42, 42
@@ -264,8 +272,7 @@ class TestMiner(unittest.TestCase):
             self.assertEqual(miner.work_map, {})
             self.assertEqual(len(self.added_blocks), 1)
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(go())
+        asyncio.run(go())
 
     def test_submit_work_with_guardian(self):
         now = 42
@@ -303,8 +310,7 @@ class TestMiner(unittest.TestCase):
                 res = await miner.submit_work(work.hash, i, sha3_256(b""))
                 self.assertTrue(res)
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(go())
+        asyncio.run(go())
 
     def test_submit_work_with_remote_guardian(self):
         now = 42
@@ -354,8 +360,7 @@ class TestMiner(unittest.TestCase):
                 res = await miner.submit_work(work.hash, i, sha3_256(b""), bytes(65))
                 self.assertFalse(res)
 
-        loop = asyncio.get_event_loop()
-        loop.run_until_complete(go())
+        asyncio.run(go())
 
     def test_validate_seal_with_adjusted_diff(self):
         diff = 1000

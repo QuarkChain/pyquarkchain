@@ -126,7 +126,7 @@ async def get_directly_linked_peers_without_handshake(
         f_alice.set_result(alice)
         handshake_finished.set()
 
-    asyncio.ensure_future(do_handshake())
+    asyncio.create_task(do_handshake())
 
     use_eip8 = False
     responder = auth.HandshakeResponder(
@@ -169,7 +169,6 @@ async def get_directly_linked_peers_without_handshake(
 
 async def get_directly_linked_peers(
     request: Any,
-    event_loop: asyncio.AbstractEventLoop,
     alice_factory: BasePeerFactory = None,
     bob_factory: BasePeerFactory = None,
 ) -> Tuple[BasePeer, BasePeer]:
@@ -191,12 +190,14 @@ async def get_directly_linked_peers(
     # Perform the handshake for the enabled sub-protocol.
     await asyncio.gather(alice.do_sub_proto_handshake(), bob.do_sub_proto_handshake())
 
-    asyncio.ensure_future(alice.run())
-    asyncio.ensure_future(bob.run())
+    asyncio.create_task(alice.run())
+    asyncio.create_task(bob.run())
+
+    loop = asyncio.get_running_loop()
 
     def finalizer() -> None:
-        event_loop.run_until_complete(
-            asyncio.gather(alice.cancel(), bob.cancel(), loop=event_loop)
+        loop.run_until_complete(
+            asyncio.gather(alice.cancel(), bob.cancel())
         )
 
     request.addfinalizer(finalizer)

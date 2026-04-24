@@ -3,7 +3,6 @@ import json
 from typing import Any, List, Dict, Tuple, Optional, Callable
 
 from quarkchain.cluster.jsonrpc_server import InvalidParams
-
 from quarkchain.core import MinorBlock
 
 SUB_NEW_HEADS = "newHeads"
@@ -88,7 +87,7 @@ class SubscriptionManager:
             }
         for sub_id, websocket in self.subscribers[SUB_SYNC].items():
             response = self.response_encoder(sub_id, result)
-            asyncio.ensure_future(websocket.send(json.dumps(response)))
+            asyncio.create_task(websocket.send(json.dumps(response)))
 
     @staticmethod
     def response_encoder(sub_id, result):

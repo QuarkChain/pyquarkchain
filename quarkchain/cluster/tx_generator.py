@@ -35,7 +35,7 @@ class TransactionGenerator:
             return False
 
         self.running = True
-        asyncio.ensure_future(self.__gen(num_tx, x_shard_percent, tx))
+        asyncio.create_task(self.__gen(num_tx, x_shard_percent, tx))
         return True
 
     async def __gen(self, num_tx, x_shard_percent, sample_tx: TypedTransaction):

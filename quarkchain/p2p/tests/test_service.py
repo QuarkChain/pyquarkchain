@@ -24,7 +24,7 @@ class WaitService(BaseService):
 @pytest.mark.asyncio
 async def test_daemon_exit_causes_parent_cancellation():
     service = ParentService()
-    asyncio.ensure_future(service.run())
+    asyncio.create_task(service.run())
 
     await asyncio.sleep(0.01)
 
@@ -43,7 +43,7 @@ async def test_daemon_exit_causes_parent_cancellation():
 @pytest.mark.asyncio
 async def test_service_tasks_do_not_leak_memory():
     service = WaitService()
-    asyncio.ensure_future(service.run())
+    asyncio.create_task(service.run())
 
     end = asyncio.Event()
 
@@ -76,7 +76,7 @@ async def test_service_tasks_do_not_leak_memory():
 async def test_service_children_do_not_leak_memory():
     parent = WaitService()
     child = WaitService()
-    asyncio.ensure_future(parent.run())
+    asyncio.create_task(parent.run())
 
     parent.run_child_service(child)
 

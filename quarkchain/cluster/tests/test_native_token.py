@@ -1,3 +1,4 @@
+import asyncio
 import unittest
 
 from quarkchain.cluster.shard_state import ShardState
@@ -24,9 +25,9 @@ def create_default_shard_state(env, shard_id=0, diff_calc=None):
     return shard_state
 
 
-class TestNativeTokenShardState(unittest.TestCase):
-    def setUp(self):
-        super().setUp()
+class TestNativeTokenShardState(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         config = get_test_env().quark_chain_config
         self.root_coinbase = config.ROOT.COINBASE_AMOUNT
         self.shard_coinbase = next(iter(config.shards.values())).COINBASE_AMOUNT
@@ -39,7 +40,7 @@ class TestNativeTokenShardState(unittest.TestCase):
     def get_after_tax_reward(self, value: int) -> int:
         return value * self.tax_rate.numerator // self.tax_rate.denominator
 
-    def test_native_token_transfer(self):
+    async def test_native_token_transfer(self):
         """in-shard transfer QETH using genesis_token as gas
         """
         QETH = token_id_encode("QETH")
@@ -88,7 +89,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         self.assertEqual(tx_list[0].gas_token_id, self.genesis_token)
         self.assertEqual(tx_list[0].transfer_token_id, QETH)
 
-    def test_native_token_transfer_0_value_success(self):
+    async def test_native_token_transfer_0_value_success(self):
         """to prevent storage spamming, do not delta_token_balance does not take action if value is 0
         """
         MALICIOUS0 = token_id_encode("MALICIOUS0")
@@ -115,7 +116,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         )
         self.assertFalse(state.add_tx(tx))
 
-    def test_disallowed_unknown_token(self):
+    async def test_disallowed_unknown_token(self):
         """do not allow tx with unknown token id
         """
         MALICIOUS0 = token_id_encode("MALICIOUS0")
@@ -153,7 +154,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         self.assertFalse(state.add_tx(tx1))
 
     @mock_pay_native_token_as_gas()
-    def test_native_token_gas(self):
+    async def test_native_token_gas(self):
         """in-shard transfer QETH using native token as gas
         """
         qeth = token_id_encode("QETH")
@@ -205,7 +206,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         self.assertEqual(tx_list[0].gas_token_id, qeth)
         self.assertEqual(tx_list[0].transfer_token_id, qeth)
 
-    def test_xshard_native_token_sent(self):
+    async def test_xshard_native_token_sent(self):
         """x-shard transfer QETH using genesis_token as gas
         """
         QETH = token_id_encode("QETHXX")
@@ -279,7 +280,7 @@ class TestNativeTokenShardState(unittest.TestCase):
             self.get_after_tax_reward(opcodes.GTXCOST + self.shard_coinbase),
         )
 
-    def test_xshard_native_token_received(self):
+    async def test_xshard_native_token_received(self):
         QETH = token_id_encode("QETHXX")
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -381,7 +382,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         )
 
     @mock_pay_native_token_as_gas()
-    def test_xshard_native_token_gas_sent(self):
+    async def test_xshard_native_token_gas_sent(self):
         """x-shard transfer QETH using QETH as gas
         """
         qeth = token_id_encode("QETHXX")
@@ -453,7 +454,7 @@ class TestNativeTokenShardState(unittest.TestCase):
         )
 
     @mock_pay_native_token_as_gas()
-    def test_xshard_native_token_gas_received(self):
+    async def test_xshard_native_token_gas_received(self):
         qeth = token_id_encode("QETHXX")
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -548,7 +549,7 @@ class TestNativeTokenShardState(unittest.TestCase):
             state0.evm_state.xshard_receive_gas_used, opcodes.GTXXSHARDCOST
         )
 
-    def test_contract_suicide(self):
+    async def test_contract_suicide(self):
         """
         Kill Call Data: 0x41c0e1b5
         """

@@ -1,8 +1,21 @@
 import unittest
 
+import numpy as np
+
 from ethereum.pow.ethash import mkcache, calc_dataset, hashimoto_light, hashimoto_full
-from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES, serialize_hash
+from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES
 from ethereum.pow.ethpow import EthashMiner, check_pow
+
+
+class TestEthashUtils(unittest.TestCase):
+    """Test correctness of ethash_utils functions."""
+
+    def test_ethash_sha3_512_known_vector(self):
+        """ethash_sha3_512 with seed zero is stable across runs."""
+        from ethereum.pow.ethash_utils import ethash_sha3_512
+        seed = b"\x00" * 32
+        result = ethash_sha3_512(seed)
+        self.assertEqual(ethash_sha3_512(seed).tobytes(), result.tobytes())
 
 
 class TestEthash(unittest.TestCase):
@@ -28,7 +41,7 @@ class TestEthash(unittest.TestCase):
         for cache_size, epoch, expected_cache in testcases:
             block_number = epoch * EPOCH_LENGTH
             cache = mkcache(cache_size, block_number)
-            cache_hex = "".join(serialize_hash(ls).hex() for ls in cache)
+            cache_hex = "".join(row.tobytes().hex() for row in cache)
             self.assertEqual(cache_hex, expected_cache[2:])
 
     def test_dataset_gen(self):
@@ -45,7 +58,7 @@ class TestEthash(unittest.TestCase):
             block_number = epoch * EPOCH_LENGTH
             cache = mkcache(cache_size, block_number)
             dataset = calc_dataset(dataset_size, cache)
-            dataset_hex = "".join(serialize_hash(ls).hex() for ls in dataset)
+            dataset_hex = "".join(row.tobytes().hex() for row in dataset)
             self.assertEqual(dataset_hex, expected_dataset[2:])
 
     def test_hashimoto(self):
@@ -116,6 +129,70 @@ class TestEthash(unittest.TestCase):
                 1, header_hash, mixhash, nonce_found, 100, is_test=True
             )
             self.assertTrue(validity)
+
+    def test_cython_matches_python_fallback(self):
+        """numpy and Cython implementations both match the original hex-based baseline."""
+        from ethereum.pow.ethash_cy import cy_calc_dataset_item, cy_hashimoto_light
+
+        from ethereum.pow.ethash import calc_dataset_item, hashimoto
+        from ethereum.pow.tests import old_ethash
+
+        old_cache = old_ethash.mkcache(1024, b"\x00" * 32)
+        new_cache = mkcache(1024, 0)
+
+        # calc_dataset_item and cy_calc_dataset_item vs old baseline
+        for i in range(16):
+            baseline = old_ethash.serialize_hash(old_ethash.calc_dataset_item(old_cache, i))
+            self.assertEqual(
+                calc_dataset_item(new_cache, i).tobytes(), baseline,
+                f"calc_dataset_item mismatch vs old at item {i}",
+            )
+            self.assertEqual(
+                cy_calc_dataset_item(new_cache, i).tobytes(), baseline,
+                f"cy_calc_dataset_item mismatch vs old at item {i}",
+            )
+
+        # hashimoto_light: Python hashimoto vs Cython cy_hashimoto_light
+        header = bytes(32)
+        nonce = (0).to_bytes(8, byteorder="big")
+        full_size = 32 * 1024
+        py_r = hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(new_cache, x))
+        cy_r = cy_hashimoto_light(
+            full_size, new_cache,
+            np.frombuffer(header, dtype=np.uint8),
+            np.frombuffer(nonce, dtype=np.uint8),
+        )
+        self.assertEqual(py_r[b"mix digest"], cy_r[b"mix digest"])
+        self.assertEqual(py_r[b"result"], cy_r[b"result"])
+
+    def test_rust_matches_python_fallback(self):
+        """Rust (ethash_rs) implementation matches the original hex-based baseline."""
+        from ethereum.pow.ethash_rs import rs_calc_dataset_item, rs_hashimoto_light
+
+        from ethereum.pow.ethash import calc_dataset_item, hashimoto
+        from ethereum.pow.tests import old_ethash
+
+        old_cache = old_ethash.mkcache(1024, b"\x00" * 32)
+        new_cache = mkcache(1024, 0)
+
+        for i in range(16):
+            baseline = old_ethash.serialize_hash(old_ethash.calc_dataset_item(old_cache, i))
+            self.assertEqual(
+                rs_calc_dataset_item(new_cache, i).tobytes(), baseline,
+                f"rs_calc_dataset_item mismatch at item {i}",
+            )
+
+        header = bytes(32)
+        nonce = (0).to_bytes(8, byteorder="big")
+        full_size = 32 * 1024
+        py_r = hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(new_cache, x))
+        rs_r = rs_hashimoto_light(
+            full_size, new_cache,
+            np.frombuffer(header, dtype=np.uint8),
+            np.frombuffer(nonce, dtype=np.uint8),
+        )
+        self.assertEqual(py_r[b"mix digest"], rs_r[b"mix digest"])
+        self.assertEqual(py_r[b"result"], rs_r[b"result"])
 
     def test_pyethash(self):
         header_hash = b"\xca/\xf0l\xaa\xe7\xc9M\xc9h\xbe}v\xd0\xfb\xf6\r\xd2\xe1\x98\x9e\xe9\xbf\rY1\xe4\x85d\xd5\x14;"

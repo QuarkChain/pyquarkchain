@@ -71,8 +71,18 @@ To install the required modules for the project. Under `pyquarkchain` dir where 
 # you may want to set the following if cryptography complains about header files: (https://github.com/pyca/cryptography/issues/3489)
 # export CPPFLAGS=-I/usr/local/opt/openssl/include
 # export LDFLAGS=-L/usr/local/opt/openssl/lib
-pip install -e .
+pip install -r requirements.txt
+python setup.py build_ext --inplace
 ```
+
+The second command builds the optional native extensions that accelerate Ethash PoW verification:
+
+- **Cython extension** (`ethash_cy`): requires a C compiler — ~30x speedup
+- **Rust extension** (`ethash_rs`): requires [Rust/cargo](https://rustup.rs) — ~112x speedup
+
+Both are built in-place by `python setup.py build_ext --inplace`. If either build is skipped (compiler or Rust not available), the pure-Python fallback is used automatically.
+
+The auto-detection order is `ethash_rs` → `ethash_cy` → pure Python. Override with the `ETHASH_LIB` environment variable (`ethash_rs`, `ethash_cy`, or `ethash`).
 
 Once all the modules are installed, try running all the unit tests under `pyquarkchain`
 

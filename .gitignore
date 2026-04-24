@@ -8,6 +8,10 @@ __pycache__/
 
 # C extensions
 *.so
+*.pyd
+
+# Cython generated
+ethereum/pow/ethash_cy.c
 
 # qkchash binaries
 qkchash/qkchash

@@ -456,7 +456,7 @@ class SlaveConnection(ClusterConnection):
         self.full_shard_id_list = full_shard_id_list
         check(len(full_shard_id_list) > 0)
 
-        asyncio.ensure_future(self.active_and_loop_forever())
+        self._loop_task = asyncio.create_task(self.active_and_loop_forever())
 
     def get_connection_to_forward(self, metadata):
         """Override ProxyConnection.get_connection_to_forward()
@@ -763,7 +763,7 @@ class MasterServer:
     """
 
     def __init__(self, env, root_state, name="master"):
-        self.loop = asyncio.get_event_loop()
+        self.loop = asyncio.get_running_loop()
         self.env = env
         self.root_state = root_state  # type: RootState
         self.network = None  # will be set by network constructor
@@ -849,7 +849,7 @@ class MasterServer:
         while True:
             try:
                 reader, writer = await asyncio.open_connection(
-                    host, port, loop=self.loop
+                    host, port
                 )
                 break
             except Exception as e:
@@ -1068,29 +1068,31 @@ class MasterServer:
         self.cluster_active_future.set_result(None)
 
     def start(self):
-        self.loop.create_task(self.__init_cluster())
+        self._init_task = self.loop.create_task(self.__init_cluster())
 
-    def do_loop(self, callbacks: List[Callable]):
+    async def do_loop(self, callbacks: List[Callable]):
         if self.env.arguments.enable_profiler:
             profile = cProfile.Profile()
             profile.enable()
 
         try:
-            self.loop.run_until_complete(self.shutdown_future)
+            await self.shutdown_future
         except KeyboardInterrupt:
             pass
         finally:
             for callback in callbacks:
                 if callable(callback):
-                    callback()
+                    result = callback()
+                    if asyncio.iscoroutine(result):
+                        await result
 
         if self.env.arguments.enable_profiler:
             profile.disable()
             profile.print_stats("time")
 
-    def wait_until_cluster_active(self):
+    async def wait_until_cluster_active(self):
         # Wait until cluster is ready
-        self.loop.run_until_complete(self.cluster_active_future)
+        await self.cluster_active_future
 
     def shutdown(self):
         # TODO: May set exception and disconnect all slaves
@@ -1100,6 +1102,8 @@ class MasterServer:
             self.cluster_active_future.set_exception(
                 RuntimeError("failed to start the cluster")
             )
+        if hasattr(self, '_init_task') and self._init_task and not self._init_task.done():
+            self._init_task.cancel()
 
     def get_shutdown_future(self):
         return self.shutdown_future
@@ -1848,21 +1852,17 @@ def parse_args():
     return env
 
 
-def main():
+async def _main_async(env):
     from quarkchain.cluster.jsonrpc import JSONRPCHttpServer
 
-    os.chdir(os.path.dirname(os.path.abspath(__file__)))
-
-    env = parse_args()
-    loop = asyncio.get_event_loop()
     root_state = RootState(env)
     master = MasterServer(env, root_state)
 
     if env.arguments.check_db:
         master.start()
-        master.wait_until_cluster_active()
-        asyncio.ensure_future(master.check_db())
-        master.do_loop([])
+        await master.wait_until_cluster_active()
+        asyncio.create_task(master.check_db())
+        await master.do_loop([])
         return
 
     # p2p discovery mode will disable master-slave communication and JSONRPC
@@ -1875,30 +1875,37 @@ def main():
     # only start the cluster if not in discovery-only mode
     if start_master:
         master.start()
-        master.wait_until_cluster_active()
+        await master.wait_until_cluster_active()
 
         # kick off simulated mining if enabled
         if env.cluster_config.START_SIMULATED_MINING:
-            asyncio.ensure_future(master.start_mining())
+            asyncio.create_task(master.start_mining())
 
     if env.cluster_config.use_p2p():
-        network = P2PManager(env, master, loop)
+        network = P2PManager(env, master)
     else:
-        network = SimpleNetwork(env, master, loop)
-    network.start()
+        network = SimpleNetwork(env, master)
+    await network.start()
 
     callbacks = [network.shutdown]
     if env.cluster_config.ENABLE_PUBLIC_JSON_RPC:
-        public_json_rpc_server = JSONRPCHttpServer.start_public_server(env, master)
+        public_json_rpc_server = await JSONRPCHttpServer.start_public_server(env, master)
         callbacks.append(public_json_rpc_server.shutdown)
 
     if env.cluster_config.ENABLE_PRIVATE_JSON_RPC:
-        private_json_rpc_server = JSONRPCHttpServer.start_private_server(env, master)
+        private_json_rpc_server = await JSONRPCHttpServer.start_private_server(env, master)
         callbacks.append(private_json_rpc_server.shutdown)
 
-    master.do_loop(callbacks)
+    await master.do_loop(callbacks)
 
     Logger.info("Master server is shutdown")
+
+
+def main():
+    os.chdir(os.path.dirname(os.path.abspath(__file__)))
+
+    env = parse_args()
+    asyncio.run(_main_async(env))
 
 
 if __name__ == "__main__":

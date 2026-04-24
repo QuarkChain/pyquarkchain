@@ -25,8 +25,8 @@ class AllSubscriber(PeerSubscriber):
 
 
 @pytest.mark.asyncio
-async def test_peer_subscriber_filters_messages(request, event_loop):
-    peer, remote = await get_directly_linked_peers(request, event_loop)
+async def test_peer_subscriber_filters_messages(request):
+    peer, remote = await get_directly_linked_peers(request)
 
     get_sum_subscriber = GetSumSubscriber()
     all_subscriber = AllSubscriber()

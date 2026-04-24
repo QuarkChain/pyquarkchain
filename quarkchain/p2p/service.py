@@ -44,7 +44,7 @@ class BaseService(ABC, CancellableMixin):
 
         self._loop = loop
 
-        base_token = CancelToken(type(self).__name__, loop=loop)
+        base_token = CancelToken(type(self).__name__)
 
         if token is None:
             self.cancel_token = base_token
@@ -58,7 +58,7 @@ class BaseService(ABC, CancellableMixin):
 
     def get_event_loop(self) -> asyncio.AbstractEventLoop:
         if self._loop is None:
-            return asyncio.get_event_loop()
+            return asyncio.get_running_loop()
         else:
             return self._loop
 
@@ -134,7 +134,7 @@ class BaseService(ABC, CancellableMixin):
                 # self.logger.debug("Task %s finished with no errors" % awaitable)
                 pass
 
-        self._tasks.add(asyncio.ensure_future(_run_task_wrapper()))
+        self._tasks.add(asyncio.create_task(_run_task_wrapper()))
         self.gc()
 
     def run_daemon_task(self, awaitable: Awaitable[Any]) -> None:
