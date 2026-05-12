@@ -6,6 +6,7 @@ Benchmark suite: old (hex-based) vs R1 (struct+list) vs R2 (numpy) vs R3 (numpy+
 - R2:  struct.pack/unpack + numpy ndarray
 - R3:  R2 + Cython inner loop for calc_dataset_item (256-iter FNV mixing)
 - R4:  full Cython + C keccak (no Python overhead in hot path)
+- R5:  Rust + tiny-keccak (ethash_rs)
 - R6:  pyethash C extension (pip install git+https://github.com/QuarkChain/ethash.git#egg=pyethash)
 
 Sections:
@@ -199,10 +200,22 @@ try:
     from ethereum.pow.ethash_cy import (
         cy_calc_dataset_item as r4_calc_dataset_item,
         cy_hashimoto_light as _r4_hashimoto_light_raw,
+        cy_mkcache as _r4_mkcache_raw,
     )
     _has_r4 = True
 except ImportError:
     _has_r4 = False
+
+
+def r4_mkcache(cache_size, block_number):
+    """R4: Cython mkcache (C keccak-512, no Python overhead)."""
+    from ethereum.pow.ethash import cache_seeds
+    from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES, ethash_sha3_256
+    while len(cache_seeds) <= block_number // EPOCH_LENGTH:
+        cache_seeds.append(ethash_sha3_256(cache_seeds[-1]).tobytes())
+    seed = cache_seeds[block_number // EPOCH_LENGTH]
+    n = cache_size // HASH_BYTES
+    return _r4_mkcache_raw(np.frombuffer(seed, dtype=np.uint8), n)
 
 
 def r4_hashimoto_light(full_size, cache, header, nonce):
@@ -333,13 +346,7 @@ if __name__ == "__main__":
     r6_cache = r6_raw = None
     if _has_r6:
         t0 = time.perf_counter(); r6_cache, r6_raw = r6_mkcache(0); t_r6c = time.perf_counter() - t0
-    parts = [f"R1={t_mc:.2f}s", f"R2={t_nc:.2f}s"]
-    if _has_r5: parts.append(f"R5={t_r5c*1000:.1f}ms")
-    if _has_r6: parts.append(f"R6={t_r6c*1000:.1f}ms")
-    ratios = [f"R1/R2={t_mc/t_nc:.1f}x"]
-    if _has_r5: ratios.append(f"R1/R5={t_mc/t_r5c:.0f}x")
-    if _has_r6: ratios.append(f"R1/R6={t_mc/t_r6c:.0f}x")
-    print(f"  mkcache  {'  '.join(parts)}  {'  '.join(ratios)}")
+    print(f"  R1={t_mc:.2f}s  R2={t_nc:.2f}s  (caches built — details in mkcache section below)")
 
     # ---- correctness ----
     old_r = old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
@@ -376,9 +383,50 @@ if __name__ == "__main__":
     r6_tag = "OK" if _has_r6 else "SKIP"
     print(f"  result   match=OK  R3={cy_tag}  R4={r4_tag}  R5={r5_tag}  R6={r6_tag}  mix={old_r[b'mix digest'].hex()[:16]}...\n")
 
+    # ---- mkcache comparison ----
+    # R1/R2/R3: one-shot from build phase (too slow to re-time at epoch-0 size).
+    # R3 ≡ R2: mix_parents only accelerates calc_dataset_item's FNV loop;
+    #           mkcache uses keccak-512 rounds only (no FNV), so R3 adds nothing here.
+    # R4/R5/R6: fast enough to re-time N_MC times for stable measurements.
+    N_MC = 3
+    print(f"mkcache  epoch-0 (cache={CACHE_SIZE//1024//1024}MB)  R1/R2/R3 one-shot, R4/R5/R6 x{N_MC}")
+    print(f"  R1   {t_mc:.3f}s  {t_mc*1000:.0f}ms/call")
+    print(f"  R2   {t_nc:.3f}s  {t_nc*1000:.0f}ms/call  R1/R2={t_mc/t_nc:.1f}x")
+    print(f"  R3   {t_nc:.3f}s  {t_nc*1000:.0f}ms/call  R1/R3={t_mc/t_nc:.1f}x  (≡ R2: mix_parents is for calc_dataset_item, not mkcache)")
+    t_r4c_mc = None
+    if _has_r4:
+        t0 = time.perf_counter()
+        for _ in range(N_MC):
+            r4_mkcache(CACHE_SIZE, 0)
+        t_r4c_mc = (time.perf_counter() - t0) / N_MC
+        print(f"  R4   {t_r4c_mc:.4f}s  {t_r4c_mc*1000:.1f}ms/call  R1/R4={t_mc/t_r4c_mc:.0f}x  R2/R4={t_nc/t_r4c_mc:.1f}x")
+    else:
+        print("  R4   (skipped — Cython R4 not built)")
+    t_r5c_mc = None
+    if _has_r5:
+        t0 = time.perf_counter()
+        for _ in range(N_MC):
+            r5_mkcache(CACHE_SIZE, 0)
+        t_r5c_mc = (time.perf_counter() - t0) / N_MC
+        prev_mc = t_r4c_mc if t_r4c_mc is not None else t_nc
+        prev_label_mc = "R4" if t_r4c_mc is not None else "R2"
+        print(f"  R5   {t_r5c_mc:.4f}s  {t_r5c_mc*1000:.1f}ms/call  R1/R5={t_mc/t_r5c_mc:.0f}x  {prev_label_mc}/R5={prev_mc/t_r5c_mc:.1f}x")
+    else:
+        print("  R5   (skipped — Rust extension not built)")
+    if _has_r6 and r6_raw is not None:
+        t0 = time.perf_counter()
+        for _ in range(N_MC):
+            r6_mkcache(0)
+        t_r6c_mc = (time.perf_counter() - t0) / N_MC
+        prev_mc = t_r5c_mc if t_r5c_mc is not None else (t_r4c_mc if t_r4c_mc is not None else t_nc)
+        prev_label_mc = "R5" if t_r5c_mc is not None else ("R4" if t_r4c_mc is not None else "R2")
+        print(f"  R6   {t_r6c_mc:.4f}s  {t_r6c_mc*1000:.1f}ms/call  R1/R6={t_mc/t_r6c_mc:.0f}x  {prev_label_mc}/R6={prev_mc/t_r6c_mc:.1f}x")
+    else:
+        print("  R6   (skipped — pip install git+https://github.com/QuarkChain/ethash.git#egg=pyethash)")
+
     # ---- calc_dataset_item breakdown ----
     N2 = 300
-    print(f"calc_dataset_item  x{N2} calls  (real epoch-0 cache)")
+    print(f"\ncalc_dataset_item  x{N2} calls  (real epoch-0 cache)")
 
     t0 = time.perf_counter()
     for i in range(N2): old_calc_dataset_item(old_cache, i)

@@ -241,3 +241,138 @@ class TestEthash(unittest.TestCase):
 
         self.assertEqual(py_r[b"mix digest"], pe_r[b"mix digest"])
         self.assertEqual(py_r[b"result"],     pe_r[b"result"])
+
+
+class TestEthashCrossImplEpochs(unittest.TestCase):
+    """Cross-implementation regression for epoch 520 (block 15_600_000, the
+    epoch that caused a sync failure) and epoch 42 (random non-zero baseline).
+
+    mkcache compares fast implementations only (ethash_cy, ethash_rs, pyethash).
+    Python numpy (ethash) is excluded from mkcache timing — it is too slow for
+    large epochs (epoch-520 cache ≈ 84 MB, epoch-42 cache ≈ 22 MB). Correctness
+    of Python mkcache at small sizes is already covered by
+    test_cython/rust/pyethash_matches_python_fallback.
+
+    hashimoto_light compares fast implementations only (ethash_cy, ethash_rs,
+    pyethash). Python numpy (ethash) is excluded — it runs in ~1–5 s per call
+    at large epochs, making cross-impl tests slow. Correctness of Python
+    hashimoto is already covered by test_cython/rust/pyethash_matches_python_fallback.
+    """
+
+    # Fixed header / nonce for reproducible hashimoto comparisons.
+    HEADER = bytes.fromhex(
+        "c9149cc0386e689d789a1c2f3d5d169a61a6218ed30e74414dc736e442ef3d1f"
+    )
+    NONCE = (0).to_bytes(8, byteorder="big")
+
+    def _check_epoch(self, epoch: int) -> None:
+        from ethereum.pow.ethash import cache_seeds
+        from ethereum.pow.ethash_utils import (
+            get_cache_size, get_full_size, ethash_sha3_256,
+        )
+
+        block      = epoch * EPOCH_LENGTH
+        cache_size = get_cache_size(block)
+        full_size  = get_full_size(block)
+        n          = cache_size // HASH_BYTES
+
+        # Derive epoch seed: same iterative sha3-256 chain as ethash.mkcache.
+        while len(cache_seeds) <= epoch:
+            cache_seeds.append(ethash_sha3_256(cache_seeds[-1]).tobytes())
+        seed     = cache_seeds[epoch]
+        seed_arr = np.frombuffer(seed, dtype=np.uint8)
+
+        # ------------------------------------------------------------------
+        # mkcache — fast implementations
+        # ------------------------------------------------------------------
+        caches       = {}   # name → ndarray(n, 16) uint32
+        _pyethash    = None
+        raw_pyethash = None
+
+        try:
+            from ethereum.pow.ethash_cy import cy_mkcache
+            caches["ethash_cy"] = cy_mkcache(seed_arr, n)
+        except ImportError:
+            pass
+
+        try:
+            from ethereum.pow.ethash_rs import rs_mkcache
+            caches["ethash_rs"] = rs_mkcache(seed_arr, n)
+        except ImportError:
+            pass
+
+        try:
+            import pyethash as _pyethash
+            raw_pyethash = _pyethash.mkcache_bytes(block)
+            caches["pyethash"] = (
+                np.frombuffer(raw_pyethash, dtype="<u4").reshape(n, 16).copy()
+            )
+        except ImportError:
+            pass
+
+        if len(caches) < 2:
+            self.skipTest(
+                f"epoch {epoch}: need ≥2 fast mkcache implementations; "
+                f"available: {list(caches)}"
+            )
+
+        ref_name, ref_cache = next(iter(caches.items()))
+        for name, cache in caches.items():
+            if name == ref_name:
+                continue
+            np.testing.assert_array_equal(
+                ref_cache, cache,
+                err_msg=f"epoch {epoch}: mkcache — {ref_name} vs {name}",
+            )
+
+        # ------------------------------------------------------------------
+        # hashimoto_light — all implementations
+        # ------------------------------------------------------------------
+        header_arr = np.frombuffer(self.HEADER, dtype=np.uint8)
+        nonce_arr  = np.frombuffer(self.NONCE,  dtype=np.uint8)
+        nonce_int  = int.from_bytes(self.NONCE, "big")
+        results    = {}   # name → {b"mix digest": bytes, b"result": bytes}
+
+        if "ethash_cy" in caches:
+            from ethereum.pow.ethash_cy import cy_hashimoto_light
+            results["ethash_cy"] = cy_hashimoto_light(
+                full_size, caches["ethash_cy"], header_arr, nonce_arr,
+            )
+
+        if "ethash_rs" in caches:
+            from ethereum.pow.ethash_rs import rs_hashimoto_light
+            results["ethash_rs"] = rs_hashimoto_light(
+                full_size, caches["ethash_rs"], header_arr, nonce_arr,
+            )
+
+        if _pyethash is not None and raw_pyethash is not None:
+            results["pyethash"] = _pyethash.hashimoto_light(
+                block, raw_pyethash, self.HEADER, nonce_int,
+            )
+
+        if len(results) < 2:
+            self.skipTest(
+                f"epoch {epoch}: need ≥2 fast hashimoto_light implementations; "
+                f"available: {list(results)}"
+            )
+
+        ref_h_name, ref_r = next(iter(results.items()))
+        for name, r in results.items():
+            if name == ref_h_name:
+                continue
+            self.assertEqual(
+                ref_r[b"mix digest"], r[b"mix digest"],
+                f"epoch {epoch}: hashimoto mix digest — {ref_h_name} vs {name}",
+            )
+            self.assertEqual(
+                ref_r[b"result"], r[b"result"],
+                f"epoch {epoch}: hashimoto result — {ref_h_name} vs {name}",
+            )
+
+    def test_epoch_520_regression(self):
+        """Epoch 520 / block 15_600_000: the epoch that caused the sync failure."""
+        self._check_epoch(520)
+
+    def test_epoch_42(self):
+        """Epoch 42 / block 1_260_000: random non-zero baseline."""
+        self._check_epoch(42)

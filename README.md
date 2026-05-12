@@ -82,7 +82,11 @@ The second command builds the optional native extensions that accelerate Ethash 
 
 Both are built in-place by `python setup.py build_ext --inplace`. If either build is skipped (compiler or Rust not available), the pure-Python fallback is used automatically.
 
-The auto-detection order is `ethash_rs` → `ethash_cy` → pure Python. Override with the `ETHASH_LIB` environment variable (`ethash_rs`, `ethash_cy`, or `ethash`).
+**pyethash C extension** (`pyethash`): included in `requirements.txt` and installed by `pip install -r requirements.txt` — requires `gcc` to be available. Provides the highest performance.
+
+> **Note:** On systems without `gcc`, `pip` will skip `pyethash` and fall back to the next available implementation. Ensure `build-essential` (Linux) or Xcode Command Line Tools (macOS) is installed before running `pip install -r requirements.txt`.
+
+The auto-detection order is `pyethash` → `ethash_rs` → `ethash_cy` → pure Python. Override with the `ETHASH_LIB` environment variable (`pyethash`, `ethash_rs`, `ethash_cy`, or `ethash`).
 
 Once all the modules are installed, try running all the unit tests under `pyquarkchain`
 
