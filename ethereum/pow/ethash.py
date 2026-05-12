@@ -8,6 +8,7 @@ from ethereum.pow.ethash_utils import (
     ethash_sha3_512, ethash_sha3_256,
     FNV_PRIME, HASH_BYTES, WORD_BYTES, MIX_BYTES,
     DATASET_PARENTS, CACHE_ROUNDS, ACCESSES, EPOCH_LENGTH,
+    get_cache_size, get_full_size,
 )
 
 _FNV_PRIME = np.uint32(FNV_PRIME)
@@ -17,28 +18,40 @@ _FNV_PRIME = np.uint32(FNV_PRIME)
 #   "ethash"    — pure-Python + numpy (always available)
 #   "ethash_cy" — Cython + C keccak  (requires python setup.py build_ext)
 #   "ethash_rs" — Rust + tiny-keccak (requires python setup.py build_ext)
-# Default: auto-detect best available (ethash_rs → ethash_cy → ethash)
+#   "pyethash"  — pyethash C extension (requires: pip install git+https://github.com/QuarkChain/ethash.git#egg=pyethash)
+# Default: auto-detect best available (pyethash → ethash_rs → ethash_cy → ethash)
 # ---------------------------------------------------------------------------
 _impl_hashimoto_light = None
 _impl_mkcache = None
 _mix_parents_fn = None
+_pyethash_mod = None
 
 ETHASH_LIB = os.environ.get("ETHASH_LIB", "auto")
 
 if ETHASH_LIB == "auto":
-    # Check symbol presence to avoid false-positives from namespace packages
-    # (e.g. the ethash_rs/ Cargo source directory looks like a package but has
-    # no compiled symbols until the extension is built).
-    _REQUIRED = {"ethash_rs": "rs_hashimoto_light", "ethash_cy": "cy_hashimoto_light"}
-    for _candidate in ("ethash_rs", "ethash_cy"):
-        try:
-            _mod = importlib.import_module(f"ethereum.pow.{_candidate}")
-            if hasattr(_mod, _REQUIRED[_candidate]):
-                ETHASH_LIB = _candidate
-                break
-        except ImportError:
-            continue
-    else:
+    # Priority: pyethash (C extension) → ethash_rs → ethash_cy → pure-Python
+    try:
+        _mod = importlib.import_module("pyethash")
+        if hasattr(_mod, "mkcache_bytes"):
+            ETHASH_LIB = "pyethash"
+    except ImportError:
+        pass
+
+    if ETHASH_LIB == "auto":
+        # Check symbol presence to avoid false-positives from namespace packages
+        # (e.g. the ethash_rs/ Cargo source directory looks like a package but has
+        # no compiled symbols until the extension is built).
+        _REQUIRED = {"ethash_rs": "rs_hashimoto_light", "ethash_cy": "cy_hashimoto_light"}
+        for _candidate in ("ethash_rs", "ethash_cy"):
+            try:
+                _mod = importlib.import_module(f"ethereum.pow.{_candidate}")
+                if hasattr(_mod, _REQUIRED[_candidate]):
+                    ETHASH_LIB = _candidate
+                    break
+            except ImportError:
+                continue
+
+    if ETHASH_LIB == "auto":
         ETHASH_LIB = "ethash"
 
 if ETHASH_LIB == "ethash_cy":
@@ -51,11 +64,32 @@ elif ETHASH_LIB == "ethash_rs":
     from ethereum.pow.ethash_rs import rs_mkcache as _impl_mkcache
     from ethereum.pow.ethash_rs import mix_parents as _mix_parents_fn
 
+elif ETHASH_LIB == "pyethash":
+    import pyethash as _pyethash_mod
+
 elif ETHASH_LIB != "ethash":
     raise ValueError(f"Unknown ETHASH_LIB={ETHASH_LIB!r}. "
-                     f"Use 'ethash', 'ethash_cy', 'ethash_rs', or 'auto'.")
+                     f"Use 'ethash', 'ethash_cy', 'ethash_rs', 'pyethash', or 'auto'.")
 
 print(f"[ethash] using implementation: {ETHASH_LIB}")
+
+
+@lru_cache(10)
+def _get_pyethash_cache(epoch: int):
+    """Returns (ndarray, raw_bytes) for the given epoch, both LRU-cached together.
+
+    arr is a zero-copy view of raw (np.frombuffer without .copy()), so both share
+    the same ~16 MB buffer. mkcache() uses arr for the numpy path; hashimoto_light()
+    uses raw for the pyethash C-extension path. Calling _get_pyethash_cache() a second
+    time within the same request is an O(1) LRU hit — no recomputation or extra copy.
+    """
+    raw = _pyethash_mod.mkcache_bytes(epoch * EPOCH_LENGTH)
+    n = len(raw) // HASH_BYTES
+    # No .copy(): arr is a read-only view into raw, keeping total memory at ~16 MB
+    # per epoch instead of ~32 MB. Safe because calc_dataset_item always copies a
+    # row before mutating it, so the cache array itself is never modified in-place.
+    arr = np.frombuffer(raw, dtype="<u4").reshape(n, 16)
+    return arr, raw
 
 
 cache_seeds = [b"\x00" * 32]  # type: List[bytes]
@@ -79,17 +113,36 @@ def _get_cache(seed: bytes, n: int) -> np.ndarray:
 
 
 def mkcache(cache_size: int, block_number) -> np.ndarray:
-    while len(cache_seeds) <= block_number // EPOCH_LENGTH:
+    n = block_number // EPOCH_LENGTH
+    # pyethash always returns the canonical epoch cache size; fall back to pure
+    # Python when a non-standard size is requested (e.g. is_test=True uses 1 KB).
+    if _pyethash_mod is not None and cache_size == get_cache_size(block_number):
+        arr, _ = _get_pyethash_cache(n)
+        return arr
+
+    while len(cache_seeds) <= n:
         new_seed = ethash_sha3_256(cache_seeds[-1]).tobytes()
         cache_seeds.append(new_seed)
 
-    seed = cache_seeds[block_number // EPOCH_LENGTH]
+    seed = cache_seeds[n]
     return _get_cache(seed, cache_size // HASH_BYTES)
 
 
 def hashimoto_light(
-    full_size: int, cache: np.ndarray, header: bytes, nonce: bytes
+    full_size: int, cache: np.ndarray, header: bytes, nonce: bytes, block_number: int = 0,
 ) -> Dict:
+    # pyethash ignores full_size and derives it from block_number internally.
+    # Only use it when full_size matches the canonical epoch dataset size to
+    # avoid silently wrong results in is_test=True paths (32 KB dataset).
+    if _pyethash_mod is not None and full_size == get_full_size(block_number):
+        n = block_number // EPOCH_LENGTH
+        # Re-calling _get_pyethash_cache here is intentional: mkcache() already called
+        # it to build arr, but hashimoto_light needs raw (bytes) for the C extension.
+        # Since arr is a zero-copy view of raw and both are cached together, this second
+        # call is an O(1) LRU hit with no extra allocation.
+        _, raw = _get_pyethash_cache(n)
+        nonce_int = int.from_bytes(nonce, byteorder="big")
+        return _pyethash_mod.hashimoto_light(block_number, raw, header, nonce_int)
     if _impl_hashimoto_light is not None:
         return _impl_hashimoto_light(
             full_size, cache,

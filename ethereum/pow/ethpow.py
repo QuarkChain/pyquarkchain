@@ -16,7 +16,7 @@ def hashimoto(
     mining_hash: bytes,
     bin_nonce: bytes,
 ):
-    return ethash.hashimoto_light(full_size, cache, mining_hash, bin_nonce)
+    return ethash.hashimoto_light(full_size, cache, mining_hash, bin_nonce, block_number)
 
 
 @lru_cache(maxsize=32)

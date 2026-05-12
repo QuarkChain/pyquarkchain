@@ -1,11 +1,12 @@
 """
-Benchmark suite: old (hex-based) vs R1 (struct+list) vs R2 (numpy) vs R3 (numpy+Cython) vs R4 (full Cython).
+Benchmark suite: old (hex-based) vs R1 (struct+list) vs R2 (numpy) vs R3 (numpy+Cython) vs R4 (full Cython) vs R6 (pyethash C extension).
 
 - old: original hex-based implementation
 - R1:  struct.pack/unpack + Python list
 - R2:  struct.pack/unpack + numpy ndarray
 - R3:  R2 + Cython inner loop for calc_dataset_item (256-iter FNV mixing)
 - R4:  full Cython + C keccak (no Python overhead in hot path)
+- R6:  pyethash C extension (pip install git+https://github.com/QuarkChain/ethash.git#egg=pyethash)
 
 Sections:
   1. mkcache build time
@@ -252,6 +253,36 @@ def r5_hashimoto_light(full_size, cache, header, nonce):
     )
 
 # ===========================================================================
+# Round 6 — pyethash C extension (production path when ETHASH_LIB=pyethash)
+# ===========================================================================
+try:
+    import pyethash as _pyethash
+    _has_r6 = True
+except ImportError:
+    _has_r6 = False
+
+
+def r6_mkcache(block_number=0):
+    """R6: build cache via pyethash.mkcache_bytes; returns (ndarray, raw_bytes).
+
+    arr is a zero-copy read-only view of raw; both share the same ~16 MB buffer.
+    hashimoto_light needs raw (bytes) for the C extension; arr is exposed for
+    completeness but is not used in the R6 benchmark path.
+    """
+    raw = _pyethash.mkcache_bytes(block_number)
+    n = len(raw) // HASH_BYTES
+    # No .copy(): arr is a view into raw, keeping total memory at ~16 MB instead of ~32 MB.
+    arr = np.frombuffer(raw, dtype="<u4").reshape(n, 16)
+    return arr, raw
+
+
+def r6_hashimoto_light(full_size, raw, header, nonce, block_number=0):
+    """R6: hashimoto_light via pyethash using pre-cached raw bytes (no copy)."""
+    nonce_int = int.from_bytes(nonce, byteorder="big")
+    return _pyethash.hashimoto_light(block_number, raw, header, nonce_int)
+
+
+# ===========================================================================
 # Micro-benchmark helpers
 # ===========================================================================
 def _bench(func, args, rounds=200_000):
@@ -299,10 +330,16 @@ if __name__ == "__main__":
     r5_cache = None
     if _has_r5:
         t0 = time.perf_counter(); r5_cache = r5_mkcache(CACHE_SIZE, 0); t_r5c = time.perf_counter() - t0
-        print(f"  mkcache  R1={t_mc:.2f}s  R2={t_nc:.2f}s  R5={t_r5c*1000:.1f}ms  "
-              f"R1/R2={t_mc/t_nc:.1f}x  R1/R5={t_mc/t_r5c:.0f}x")
-    else:
-        print(f"  mkcache  R1={t_mc:.2f}s  R2={t_nc:.2f}s  R1/R2={t_mc/t_nc:.1f}x")
+    r6_cache = r6_raw = None
+    if _has_r6:
+        t0 = time.perf_counter(); r6_cache, r6_raw = r6_mkcache(0); t_r6c = time.perf_counter() - t0
+    parts = [f"R1={t_mc:.2f}s", f"R2={t_nc:.2f}s"]
+    if _has_r5: parts.append(f"R5={t_r5c*1000:.1f}ms")
+    if _has_r6: parts.append(f"R6={t_r6c*1000:.1f}ms")
+    ratios = [f"R1/R2={t_mc/t_nc:.1f}x"]
+    if _has_r5: ratios.append(f"R1/R5={t_mc/t_r5c:.0f}x")
+    if _has_r6: ratios.append(f"R1/R6={t_mc/t_r6c:.0f}x")
+    print(f"  mkcache  {'  '.join(parts)}  {'  '.join(ratios)}")
 
     # ---- correctness ----
     old_r = old_hashimoto_light(FULL_SIZE, old_cache, HEADER, NONCE)
@@ -330,10 +367,14 @@ if __name__ == "__main__":
             assert np.array_equal(r2_item, r5_item), f"R2/R5 mismatch at item {i}"
         r5_r = r5_hashimoto_light(FULL_SIZE, r5_cache, HEADER, NONCE)
         assert old_r == r5_r, "old/R5 hashimoto MISMATCH"
+    if _has_r6 and r6_raw is not None:
+        r6_r = r6_hashimoto_light(FULL_SIZE, r6_raw, HEADER, NONCE)
+        assert old_r == r6_r, "old/R6 hashimoto MISMATCH"
     cy_tag = "OK" if _has_cython else "SKIP"
     r4_tag = "OK" if _has_r4 else "SKIP"
     r5_tag = "OK" if _has_r5 else "SKIP"
-    print(f"  result   match=OK  R3={cy_tag}  R4={r4_tag}  R5={r5_tag}  mix={old_r[b'mix digest'].hex()[:16]}...\n")
+    r6_tag = "OK" if _has_r6 else "SKIP"
+    print(f"  result   match=OK  R3={cy_tag}  R4={r4_tag}  R5={r5_tag}  R6={r6_tag}  mix={old_r[b'mix digest'].hex()[:16]}...\n")
 
     # ---- calc_dataset_item breakdown ----
     N2 = 300
@@ -377,6 +418,7 @@ if __name__ == "__main__":
         print(f"\n  R5   {t_r5_i:.3f}s  {t_r5_i/N2*1000:.2f}ms/call  old/R5={t_old_i/t_r5_i:.2f}x  {prev_label}/R5={prev_i/t_r5_i:.1f}x")
     else:
         print("\n  R5   (skipped — Rust extension not built)")
+    print("  R6   N/A (pyethash C API does not expose calc_dataset_item)")
 
     # ---- hashimoto_light benchmark ----
     N = 30
@@ -434,9 +476,21 @@ if __name__ == "__main__":
         t_r5 = time.perf_counter() - t0
         prev = t_r4 if _has_r4 else t_r2
         prev_label = "R4" if _has_r4 else "R2"
-        print(f"\n  R5   {t_r5:.3f}s  {t_r5/N*1000:.1f}ms/call  old/R5={t_old/t_r5:.2f}x  {prev_label}/R5={prev/t_r5:.1f}x")
+        print(f"\n  R5   {t_r5:.3f}s  {t_r5/N*1000:.1f}ms/call  old/R5={t_old/t_r5:.2f}x  {prev_label}/R5={prev/t_r5:.1f}x", end="")
     else:
-        print("\n  R5   (skipped — Rust extension not built)")
+        print("\n  R5   (skipped — Rust extension not built)", end="")
+    if _has_r6 and r6_raw is not None:
+        # R6: pyethash C extension (passes pre-cached raw bytes, no per-call copy)
+        for _ in range(2):
+            r6_hashimoto_light(FULL_SIZE, r6_raw, HEADER, NONCE)
+        t0 = time.perf_counter()
+        for i in range(N): r6_hashimoto_light(FULL_SIZE, r6_raw, HEADER, i.to_bytes(8, "big"))
+        t_r6 = time.perf_counter() - t0
+        prev = t_r5 if _has_r5 else (t_r4 if _has_r4 else t_r2)
+        prev_label = "R5" if _has_r5 else ("R4" if _has_r4 else "R2")
+        print(f"\n  R6   {t_r6:.3f}s  {t_r6/N*1000:.1f}ms/call  old/R6={t_old/t_r6:.0f}x  {prev_label}/R6={prev/t_r6:.1f}x")
+    else:
+        print(f"\n  R6   (skipped — pip install git+https://github.com/QuarkChain/ethash.git#egg=pyethash)")
 
     # ---- primitive micro-benchmarks (old vs R1 vs R2) ----
     NM = 200_000

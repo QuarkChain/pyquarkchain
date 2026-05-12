@@ -206,3 +206,38 @@ class TestEthash(unittest.TestCase):
                 1, header_hash, mixhash, nonce_found, diff, is_test=False
             )
             self.assertTrue(validity)
+
+    def test_pyethash_matches_python_fallback(self):
+        """pyethash C extension mkcache and hashimoto_light match numpy Python fallback."""
+        import pyethash as _pyethash
+
+        from ethereum.pow.ethash import hashimoto, calc_dataset_item, _get_cache, cache_seeds
+        from ethereum.pow.ethash_utils import get_cache_size, get_full_size
+
+        # pyethash only supports canonical epoch sizes, not test/small sizes
+        cache_size = get_cache_size(0)
+        full_size = get_full_size(0)
+        header = bytes(32)
+        nonce = (0).to_bytes(8, byteorder="big")
+
+        raw = _pyethash.mkcache_bytes(0)
+        self.assertEqual(len(raw), cache_size)
+        cache = np.frombuffer(raw, dtype="<u4").reshape(len(raw) // HASH_BYTES, 16).copy()
+
+        # Compare mkcache content: pyethash vs Python _get_cache
+        # _get_cache is lru_cached; first call is slow (~5-20s) for canonical epoch-0 size
+        n_total = cache_size // HASH_BYTES
+        seed = cache_seeds[0]  # epoch-0 seed = b"\x00" * 32
+        py_cache = _get_cache(seed, n_total)
+        self.assertEqual(
+            raw,
+            py_cache.astype("<u4", copy=False).tobytes(),
+            "mkcache bytes mismatch: pyethash vs Python _get_cache",
+        )
+
+        # Compare hashimoto_light output: numpy Python path vs pyethash C path
+        py_r = hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(cache, x))
+        pe_r = _pyethash.hashimoto_light(0, raw, header, 0)
+
+        self.assertEqual(py_r[b"mix digest"], pe_r[b"mix digest"])
+        self.assertEqual(py_r[b"result"],     pe_r[b"result"])
