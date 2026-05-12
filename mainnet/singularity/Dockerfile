@@ -5,6 +5,7 @@ FROM python:3.13-slim AS base
 LABEL maintainer="quarkchain"
 
 RUN apt-get update && apt-get install -y \
+    gcc \
     git \
     curl \
     libssl3 \
@@ -33,10 +34,8 @@ FROM base AS prebuilt-false
 
 RUN apt-get update && apt-get upgrade -y && apt-get install -y \
     build-essential \
-    gcc \
     g++ \
     make \
-    python3-dev \
     pkg-config \
     libssl-dev \
     libbz2-dev \
