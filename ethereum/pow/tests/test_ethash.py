@@ -245,12 +245,12 @@ class TestEthash(unittest.TestCase):
 
 class TestEthashCrossImplEpochs(unittest.TestCase):
     """Cross-implementation regression for epoch 520 (block 15_600_000, the
-    epoch that caused a sync failure) and epoch 42 (random non-zero baseline).
+    epoch that caused a sync failure) and a random epoch in [1, 520].
 
     mkcache compares fast implementations only (ethash_cy, ethash_rs, pyethash).
     Python numpy (ethash) is excluded from mkcache timing — it is too slow for
-    large epochs (epoch-520 cache ≈ 84 MB, epoch-42 cache ≈ 22 MB). Correctness
-    of Python mkcache at small sizes is already covered by
+    large epochs (epoch-520 cache ≈ 84 MB). Correctness of Python mkcache at
+    small sizes is already covered by
     test_cython/rust/pyethash_matches_python_fallback.
 
     hashimoto_light compares fast implementations only (ethash_cy, ethash_rs,
@@ -373,6 +373,8 @@ class TestEthashCrossImplEpochs(unittest.TestCase):
         """Epoch 520 / block 15_600_000: the epoch that caused the sync failure."""
         self._check_epoch(520)
 
-    def test_epoch_42(self):
-        """Epoch 42 / block 1_260_000: random non-zero baseline."""
-        self._check_epoch(42)
+    def test_random_epoch(self):
+        """Random non-zero epoch: baseline coverage across the epoch space."""
+        import random
+        epoch = random.randint(1, 520)
+        self._check_epoch(epoch)
