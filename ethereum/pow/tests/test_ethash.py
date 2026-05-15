@@ -81,6 +81,7 @@ class TestEthash(unittest.TestCase):
                 cache,
                 header,
                 nonce.to_bytes(8, byteorder="big"),
+                0,
             ),
             hashimoto_full(dataset, header, nonce.to_bytes(8, byteorder="big")),
         ):

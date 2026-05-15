@@ -309,7 +309,7 @@ if __name__ == "__main__":
         r2_hashimoto_light(FULL_SIZE, r2_cache, HEADER, NONCE)
 
     t0 = time.perf_counter()
-    for i in range(N): old_hashimoto_light(FULL_SIZE, old_cache, HEADER, i.to_bytes(8, "big"))
+    for i in range(N): old_hashimoto_light(FULL_SIZE, old_cache, HEADER, i.to_bytes(8, "big"), 0)
     t_old = time.perf_counter() - t0
 
     t0 = time.perf_counter()

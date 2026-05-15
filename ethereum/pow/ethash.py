@@ -129,7 +129,7 @@ def mkcache(cache_size: int, block_number) -> np.ndarray:
 
 
 def hashimoto_light(
-    full_size: int, cache: np.ndarray, header: bytes, nonce: bytes, block_number: int = 0,
+    full_size: int, cache: np.ndarray, header: bytes, nonce: bytes, block_number: int,
 ) -> Dict:
     # pyethash ignores full_size and derives it from block_number internally.
     # Only use it when full_size matches the canonical epoch dataset size to

@@ -33,4 +33,4 @@ rlp>=3,<5
 pbkdf2>=1.3,<2
 
 # pyethash C extension for PoW (set ETHASH_LIB=pyethash to activate; requires gcc)
-pyethash @ git+https://github.com/QuarkChain/ethash.git@upgrade-py3-13
+pyethash @ git+https://github.com/QuarkChain/ethash.git
