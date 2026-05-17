@@ -6,6 +6,7 @@ from ethereum.pow.ethash_utils import (
     ethash_sha3_512, ethash_sha3_256,
     FNV_PRIME, HASH_BYTES, WORD_BYTES, MIX_BYTES,
     DATASET_PARENTS, CACHE_ROUNDS, ACCESSES, EPOCH_LENGTH,
+    get_cache_size, get_full_size,
 )
 
 _FNV_PRIME = np.uint32(FNV_PRIME)
@@ -53,9 +54,11 @@ def _get_cache(seed: bytes, n: int) -> np.ndarray:
     return o
 
 def mkcache_pyethash(cache_size: int, block_number) -> np.ndarray:
+    if cache_size != get_cache_size(block_number):
+        return mkcache_python(cache_size, block_number)  # non-canonical size (e.g. is_test)
     n = block_number // EPOCH_LENGTH
     arr, _ = _get_pyethash_cache(n)
-    return arr  # cache_size ignored: pyethash always returns canonical epoch size
+    return arr
 
 def mkcache_python(cache_size: int, block_number) -> np.ndarray:
     n = block_number // EPOCH_LENGTH
@@ -76,6 +79,8 @@ def hashimoto_light_python(
 def hashimoto_light_pyethash(
     full_size: int, cache: np.ndarray, header: bytes, nonce: bytes, block_number: int,
 ) -> Dict:
+    if full_size != get_full_size(block_number):
+        return hashimoto_light_python(full_size, cache, header, nonce, block_number)  # non-canonical size (e.g. is_test)
     n = block_number // EPOCH_LENGTH
     _, raw = _get_pyethash_cache(n)
     nonce_int = int.from_bytes(nonce, byteorder="big")
