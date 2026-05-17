@@ -1,45 +1,7 @@
 import os
 
-from setuptools import setup, Extension
+from setuptools import setup
 from setuptools.command.develop import develop
-
-# Optional Cython extension for ethash acceleration.
-# The Python implementation in ethereum/pow/ethash.py falls back transparently
-# when the compiled module is not present.
-ext_modules = []
-try:
-    from Cython.Build import cythonize
-    import numpy as _np
-
-    ext_modules = cythonize(
-        [
-            Extension(
-                "ethereum.pow.ethash_cy",
-                sources=["ethereum/pow/ethash_cy.pyx", "ethereum/pow/keccak_tiny.c"],
-                include_dirs=[_np.get_include(), "ethereum/pow"],
-                define_macros=[("NPY_NO_DEPRECATED_API", "NPY_1_7_API_VERSION")],
-            )
-        ],
-        language_level=3,
-    )
-except ImportError:
-    pass
-
-# Optional Rust extension for ethash acceleration.
-# Requires Rust/cargo and setuptools-rust to be installed.
-rust_extensions = []
-try:
-    from setuptools_rust import RustExtension
-
-    rust_extensions = [
-        RustExtension(
-            "ethereum.pow.ethash_rs",
-            path="ethereum/pow/ethash_rs/Cargo.toml",
-            debug=False,
-        )
-    ]
-except ImportError:
-    pass
 
 install_requires = set(x.strip() for x in open("requirements.txt"))
 install_requires_replacements = {}
@@ -84,6 +46,4 @@ setup(
     install_requires=install_requires,
     python_requires=">=3.13",
     cmdclass={"develop": custom_develop},
-    ext_modules=ext_modules,
-    rust_extensions=rust_extensions,
 )
