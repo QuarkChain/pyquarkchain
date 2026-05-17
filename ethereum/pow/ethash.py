@@ -13,21 +13,25 @@ _FNV_PRIME = np.uint32(FNV_PRIME)
 
 try:
     import pyethash as _pyethash_mod
+    _pyethash_call = _pyethash_mod.hashimoto_light  # pre-bound: avoids attr lookup per call
     ETHASH_LIB = "pyethash"
 except ImportError:
     _pyethash_mod = None
+    _pyethash_call = None
     ETHASH_LIB = "python"
 
 
 def set_ethash_lib(lib_name: str) -> None:
     """Switch the active ethash implementation at runtime. Clears LRU caches."""
-    global ETHASH_LIB, _pyethash_mod
+    global ETHASH_LIB, _pyethash_mod, _pyethash_call
     if lib_name == "pyethash":
         import pyethash as _mod
         _pyethash_mod = _mod
+        _pyethash_call = _mod.hashimoto_light
         ETHASH_LIB = "pyethash"
     elif lib_name == "python":
         _pyethash_mod = None
+        _pyethash_call = None
         ETHASH_LIB = "python"
     else:
         raise ValueError(f"Unknown lib_name={lib_name!r}. Use 'pyethash' or 'python'.")
@@ -75,7 +79,7 @@ def mkcache(cache_size: int, block_number) -> np.ndarray:
     n = block_number // EPOCH_LENGTH
     # pyethash always returns the canonical epoch cache size; fall back to pure
     # Python when a non-standard size is requested (e.g. is_test=True uses 1 KB).
-    if ETHASH_LIB == "pyethash" and cache_size == get_cache_size(block_number):
+    if _pyethash_call is not None and cache_size == get_cache_size(block_number):
         arr, _ = _get_pyethash_cache(n)
         return arr
 
@@ -93,7 +97,7 @@ def hashimoto_light(
     # pyethash ignores full_size and derives it from block_number internally.
     # Only use it when full_size matches the canonical epoch dataset size to
     # avoid silently wrong results in is_test=True paths (32 KB dataset).
-    if ETHASH_LIB == "pyethash" and full_size == get_full_size(block_number):
+    if _pyethash_call is not None and full_size == get_full_size(block_number):
         n = block_number // EPOCH_LENGTH
         # Re-calling _get_pyethash_cache here is intentional: mkcache() already called
         # it to build arr, but hashimoto_light needs raw (bytes) for the C extension.
@@ -101,7 +105,7 @@ def hashimoto_light(
         # call is an O(1) LRU hit with no extra allocation.
         _, raw = _get_pyethash_cache(n)
         nonce_int = int.from_bytes(nonce, byteorder="big")
-        return _pyethash_mod.hashimoto_light(block_number, raw, header, nonce_int)
+        return _pyethash_call(block_number, raw, header, nonce_int)
     return hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(cache, x))
 
 

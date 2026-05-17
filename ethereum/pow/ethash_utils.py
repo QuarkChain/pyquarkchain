@@ -1,4 +1,5 @@
 import math
+from functools import lru_cache
 from typing import Union
 from Crypto.Hash import keccak
 
@@ -50,6 +51,7 @@ def isprime(x):
     return True
 
 
+@lru_cache(maxsize=256)
 def get_cache_size(block_number):
     sz = CACHE_BYTES_INIT + CACHE_BYTES_GROWTH * (block_number // EPOCH_LENGTH)
     sz -= HASH_BYTES
@@ -58,6 +60,7 @@ def get_cache_size(block_number):
     return sz
 
 
+@lru_cache(maxsize=256)
 def get_full_size(block_number):
     sz = DATASET_BYTES_INIT + DATASET_BYTES_GROWTH * (block_number // EPOCH_LENGTH)
     sz -= MIX_BYTES
