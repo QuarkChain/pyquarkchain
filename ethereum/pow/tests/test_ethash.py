@@ -193,25 +193,36 @@ class TestEthashCrossImplEpochs(unittest.TestCase):
     )
     NONCE = (0).to_bytes(8, byteorder="big")
 
-    def _check_epoch(self, epoch: int) -> None:
-        import pyethash as _pyethash
+    # Known-good pyethash outputs for epoch 520, HEADER above, NONCE=0.
+    # To regenerate: set both to None, run test_epoch_520_regression,
+    # copy the printed hex strings back here.
+    _EPOCH_520_MIX    = "772518bb9299c81777d73e73486e62076adfcb09bb32ea3c441722d514ba2fd6"
+    _EPOCH_520_RESULT = "4e2d6a014c7d537f3503c99ca1accc84167e9d8bd0e028b562e66b6e7ba44adf"
+
+    def _run_pyethash(self, epoch: int):
+        try:
+            import pyethash as _pyethash
+        except ImportError:
+            self.skipTest("pyethash not installed")
         block     = epoch * EPOCH_LENGTH
         nonce_int = int.from_bytes(self.NONCE, "big")
-
         raw = _pyethash.mkcache_bytes(block)
         r   = _pyethash.hashimoto_light(block, raw, self.HEADER, nonce_int)
-
-        self.assertIn(b"mix digest", r)
-        self.assertIn(b"result", r)
-        self.assertEqual(len(r[b"mix digest"]), 32)
-        self.assertEqual(len(r[b"result"]), 32)
+        return r
 
     def test_epoch_520_regression(self):
-        """Epoch 520 / block 15_600_000: the epoch that caused the sync failure."""
-        self._check_epoch(520)
+        """Epoch 520 / block 15_600_000: compare against known-good pyethash output."""
+        r = self._run_pyethash(520)
+        if self._EPOCH_520_MIX is None:
+            print(f"\n[GENERATE] _EPOCH_520_MIX    = '{r[b'mix digest'].hex()}'")
+            print(f"[GENERATE] _EPOCH_520_RESULT = '{r[b'result'].hex()}'")
+            self.fail("Paste the printed values into _EPOCH_520_MIX / _EPOCH_520_RESULT")
+        self.assertEqual(r[b"mix digest"].hex(), self._EPOCH_520_MIX)
+        self.assertEqual(r[b"result"].hex(),     self._EPOCH_520_RESULT)
 
     def test_random_epoch(self):
-        """Random non-zero epoch: baseline coverage across the epoch space."""
+        """Random non-zero epoch: structural sanity check across the epoch space."""
         import random
-        epoch = random.randint(1, 1000)
-        self._check_epoch(epoch)
+        r = self._run_pyethash(random.randint(1, 520))
+        self.assertEqual(len(r[b"mix digest"]), 32)
+        self.assertEqual(len(r[b"result"]), 32)
