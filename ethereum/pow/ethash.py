@@ -6,37 +6,19 @@ from ethereum.pow.ethash_utils import (
     ethash_sha3_512, ethash_sha3_256,
     FNV_PRIME, HASH_BYTES, WORD_BYTES, MIX_BYTES,
     DATASET_PARENTS, CACHE_ROUNDS, ACCESSES, EPOCH_LENGTH,
-    get_cache_size, get_full_size,
 )
 
 _FNV_PRIME = np.uint32(FNV_PRIME)
+cache_seeds = [b"\x00" * 32]  # type: List[bytes]
 
 try:
     import pyethash as _pyethash_mod
-    _pyethash_call = _pyethash_mod.hashimoto_light  # pre-bound: avoids attr lookup per call
+    _pyethash_fn = _pyethash_mod.hashimoto_light  # pre-bound: avoids attr lookup per call
     ETHASH_LIB = "pyethash"
 except ImportError:
     _pyethash_mod = None
-    _pyethash_call = None
+    _pyethash_fn  = None
     ETHASH_LIB = "python"
-
-
-def set_ethash_lib(lib_name: str) -> None:
-    """Switch the active ethash implementation at runtime. Clears LRU caches."""
-    global ETHASH_LIB, _pyethash_mod, _pyethash_call
-    if lib_name == "pyethash":
-        import pyethash as _mod
-        _pyethash_mod = _mod
-        _pyethash_call = _mod.hashimoto_light
-        ETHASH_LIB = "pyethash"
-    elif lib_name == "python":
-        _pyethash_mod = None
-        _pyethash_call = None
-        ETHASH_LIB = "python"
-    else:
-        raise ValueError(f"Unknown lib_name={lib_name!r}. Use 'pyethash' or 'python'.")
-    _get_pyethash_cache.cache_clear()
-    _get_cache.cache_clear()
 
 
 @lru_cache(10)
@@ -56,10 +38,6 @@ def _get_pyethash_cache(epoch: int):
     arr = np.frombuffer(raw, dtype="<u4").reshape(n, 16)
     return arr, raw
 
-
-cache_seeds = [b"\x00" * 32]  # type: List[bytes]
-
-
 @lru_cache(10)
 def _get_cache(seed: bytes, n: int) -> np.ndarray:
     """Returns cache as uint32 ndarray of shape (n, 16)."""
@@ -74,14 +52,13 @@ def _get_cache(seed: bytes, n: int) -> np.ndarray:
             o[i] = ethash_sha3_512(xored)
     return o
 
-
-def mkcache(cache_size: int, block_number) -> np.ndarray:
+def mkcache_pyethash(cache_size: int, block_number) -> np.ndarray:
     n = block_number // EPOCH_LENGTH
-    # pyethash always returns the canonical epoch cache size; fall back to pure
-    # Python when a non-standard size is requested (e.g. is_test=True uses 1 KB).
-    if _pyethash_call is not None and cache_size == get_cache_size(block_number):
-        arr, _ = _get_pyethash_cache(n)
-        return arr
+    arr, _ = _get_pyethash_cache(n)
+    return arr  # cache_size ignored: pyethash always returns canonical epoch size
+
+def mkcache_python(cache_size: int, block_number) -> np.ndarray:
+    n = block_number // EPOCH_LENGTH
 
     while len(cache_seeds) <= n:
         new_seed = ethash_sha3_256(cache_seeds[-1]).tobytes()
@@ -91,22 +68,61 @@ def mkcache(cache_size: int, block_number) -> np.ndarray:
     return _get_cache(seed, cache_size // HASH_BYTES)
 
 
+def hashimoto_light_python(
+    full_size: int, cache: np.ndarray, header: bytes, nonce: bytes, block_number: int,
+) -> Dict:
+    return hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(cache, x))
+
+def hashimoto_light_pyethash(
+    full_size: int, cache: np.ndarray, header: bytes, nonce: bytes, block_number: int,
+) -> Dict:
+    n = block_number // EPOCH_LENGTH
+    _, raw = _get_pyethash_cache(n)
+    nonce_int = int.from_bytes(nonce, byteorder="big")
+    return _pyethash_fn(block_number, raw, header, nonce_int)
+
+
+# Mutable impl pointers — updated by set_ethash_lib() at runtime.
+# mkcache / hashimoto_light are stable wrapper functions so callers that do
+# "from ethash import mkcache" keep working after a set_ethash_lib() call.
+if ETHASH_LIB == "pyethash":
+    _mkcache_impl         = mkcache_pyethash
+    _hashimoto_light_impl = hashimoto_light_pyethash
+else:
+    _mkcache_impl         = mkcache_python
+    _hashimoto_light_impl = hashimoto_light_python
+
+
+def mkcache(cache_size: int, block_number) -> np.ndarray:
+    return _mkcache_impl(cache_size, block_number)
+
+
 def hashimoto_light(
     full_size: int, cache: np.ndarray, header: bytes, nonce: bytes, block_number: int,
 ) -> Dict:
-    # pyethash ignores full_size and derives it from block_number internally.
-    # Only use it when full_size matches the canonical epoch dataset size to
-    # avoid silently wrong results in is_test=True paths (32 KB dataset).
-    if _pyethash_call is not None and full_size == get_full_size(block_number):
-        n = block_number // EPOCH_LENGTH
-        # Re-calling _get_pyethash_cache here is intentional: mkcache() already called
-        # it to build arr, but hashimoto_light needs raw (bytes) for the C extension.
-        # Since arr is a zero-copy view of raw and both are cached together, this second
-        # call is an O(1) LRU hit with no extra allocation.
-        _, raw = _get_pyethash_cache(n)
-        nonce_int = int.from_bytes(nonce, byteorder="big")
-        return _pyethash_call(block_number, raw, header, nonce_int)
-    return hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(cache, x))
+    return _hashimoto_light_impl(full_size, cache, header, nonce, block_number)
+
+
+def set_ethash_lib(lib_name: str) -> None:
+    """Switch the active ethash implementation at runtime."""
+    global ETHASH_LIB, _pyethash_mod, _pyethash_fn, _mkcache_impl, _hashimoto_light_impl
+    if lib_name == "pyethash":
+        import pyethash as _mod
+        _pyethash_mod         = _mod
+        _pyethash_fn          = _mod.hashimoto_light
+        _mkcache_impl         = mkcache_pyethash
+        _hashimoto_light_impl = hashimoto_light_pyethash
+        ETHASH_LIB            = "pyethash"
+        _get_pyethash_cache.cache_clear()
+    elif lib_name == "python":
+        _pyethash_mod         = None
+        _pyethash_fn          = None
+        _mkcache_impl         = mkcache_python
+        _hashimoto_light_impl = hashimoto_light_python
+        ETHASH_LIB            = "python"
+        _get_cache.cache_clear()
+    else:
+        raise ValueError(f"Unknown lib_name={lib_name!r}. Use 'pyethash' or 'python'.")
 
 
 def calc_dataset_item(cache: np.ndarray, i: int) -> np.ndarray:
