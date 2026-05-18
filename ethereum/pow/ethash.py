@@ -53,21 +53,19 @@ def _get_cache(seed: bytes, n: int) -> np.ndarray:
             o[i] = ethash_sha3_512(xored)
     return o
 
-def mkcache_pyethash(cache_size: int, block_number) -> np.ndarray:
-    if cache_size != get_cache_size(block_number):
-        return mkcache_python(cache_size, block_number)  # non-canonical size (e.g. is_test)
-    n = block_number // EPOCH_LENGTH
-    arr, _ = _get_pyethash_cache(n)
+def mkcache_pyethash(cache_size: int, epoch: int) -> np.ndarray:
+    if cache_size != get_cache_size(epoch):
+        return mkcache_python(cache_size, epoch)  # non-canonical size (e.g. is_test)
+
+    arr, _ = _get_pyethash_cache(epoch)
     return arr
 
-def mkcache_python(cache_size: int, block_number) -> np.ndarray:
-    n = block_number // EPOCH_LENGTH
-
-    while len(cache_seeds) <= n:
+def mkcache_python(cache_size: int, epoch: int) -> np.ndarray:
+    while len(cache_seeds) <= epoch:
         new_seed = ethash_sha3_256(cache_seeds[-1]).tobytes()
         cache_seeds.append(new_seed)
 
-    seed = cache_seeds[n]
+    seed = cache_seeds[epoch]
     return _get_cache(seed, cache_size // HASH_BYTES)
 
 
@@ -79,9 +77,10 @@ def hashimoto_light_python(
 def hashimoto_light_pyethash(
     full_size: int, cache: np.ndarray, header: bytes, nonce: bytes, block_number: int,
 ) -> Dict:
-    if full_size != get_full_size(block_number):
-        return hashimoto_light_python(full_size, cache, header, nonce, block_number)  # non-canonical size (e.g. is_test)
     n = block_number // EPOCH_LENGTH
+    if full_size != get_full_size(n):
+        return hashimoto_light_python(full_size, cache, header, nonce, block_number)  # non-canonical size (e.g. is_test)
+
     _, raw = _get_pyethash_cache(n)
     nonce_int = int.from_bytes(nonce, byteorder="big")
     return _pyethash_fn(block_number, raw, header, nonce_int)
@@ -98,8 +97,8 @@ else:
     _hashimoto_light_impl = hashimoto_light_python
 
 
-def mkcache(cache_size: int, block_number) -> np.ndarray:
-    return _mkcache_impl(cache_size, block_number)
+def mkcache(cache_size: int, epoch: int) -> np.ndarray:
+    return _mkcache_impl(cache_size, epoch)
 
 
 def hashimoto_light(

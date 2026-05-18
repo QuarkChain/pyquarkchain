@@ -39,8 +39,7 @@ class TestEthash(unittest.TestCase):
             ),
         ]
         for cache_size, epoch, expected_cache in testcases:
-            block_number = epoch * EPOCH_LENGTH
-            cache = mkcache(cache_size, block_number)
+            cache = mkcache(cache_size, epoch)
             cache_hex = "".join(row.tobytes().hex() for row in cache)
             self.assertEqual(cache_hex, expected_cache[2:])
 
@@ -55,14 +54,13 @@ class TestEthash(unittest.TestCase):
             )
         ]
         for epoch, cache_size, dataset_size, expected_dataset in testcases:
-            block_number = epoch * EPOCH_LENGTH
-            cache = mkcache(cache_size, block_number)
+            cache = mkcache(cache_size, epoch)
             dataset = calc_dataset(dataset_size, cache)
             dataset_hex = "".join(row.tobytes().hex() for row in dataset)
             self.assertEqual(dataset_hex, expected_dataset[2:])
 
     def test_hashimoto(self):
-        cache = mkcache(cache_size=1024, block_number=0)
+        cache = mkcache(cache_size=1024, epoch=0)
         dataset = calc_dataset(32 * 1024, cache)
         header = bytes.fromhex(
             "0xc9149cc0386e689d789a1c2f3d5d169a61a6218ed30e74414dc736e442ef3d1f"[2:]
@@ -152,8 +150,8 @@ class TestEthash(unittest.TestCase):
         from ethereum.pow.ethash_utils import get_cache_size, get_full_size
 
         # pyethash only supports canonical epoch sizes, not test/small sizes
-        cache_size = get_cache_size(0)
-        full_size = get_full_size(0)
+        cache_size = get_cache_size(0)  # epoch 0
+        full_size = get_full_size(0)    # epoch 0
         header = bytes(32)
         nonce = (0).to_bytes(8, byteorder="big")
 

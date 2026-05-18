@@ -5,8 +5,8 @@ from ethereum.pow import ethash
 from ethereum.pow.ethash_utils import get_full_size, get_cache_size, EPOCH_LENGTH
 
 
-def get_cache(cache_size: int, block_number: int):
-    return ethash.mkcache(cache_size, block_number)
+def get_cache(cache_size: int, epoch: int):
+    return ethash.mkcache(cache_size, epoch)
 
 
 def hashimoto(
@@ -27,16 +27,17 @@ def check_pow(
     if len(mixhash) != 32 or len(header_hash) != 32 or len(nonce) != 8:
         return False
 
+    epoch = block_number // EPOCH_LENGTH
     if is_test:
         cache_size, full_size = 1024, 32 * 1024
         ethash.set_ethash_lib("python")  # force python impl for non-canonical size
     else:
         cache_size, full_size = (
-            get_cache_size(block_number),
-            get_full_size(block_number),
+            get_cache_size(epoch),
+            get_full_size(epoch),
         )
 
-    cache = get_cache(cache_size, block_number)
+    cache = get_cache(cache_size, epoch)
     mining_output = hashimoto(block_number, full_size, cache, header_hash, nonce)
     if mining_output[b"mix digest"] != mixhash:
         return False
@@ -82,16 +83,17 @@ def mine(
     rounds: int = 1000,
     is_test: bool = False,
 ) -> Tuple[Optional[bytes], Optional[bytes]]:
+    epoch = block_number // EPOCH_LENGTH
     if is_test:
         cache_size, full_size = 1024, 32 * 1024
         ethash.set_ethash_lib("python")  # force python impl for non-canonical size
     else:
         cache_size, full_size = (
-            get_cache_size(block_number),
-            get_full_size(block_number),
+            get_cache_size(epoch),
+            get_full_size(epoch),
         )
 
-    cache = get_cache(cache_size, block_number)
+    cache = get_cache(cache_size, epoch)
     nonce = start_nonce
     target = (2 ** 256 // (difficulty or 1) - 1).to_bytes(32, byteorder="big")
     for i in range(1, rounds + 1):

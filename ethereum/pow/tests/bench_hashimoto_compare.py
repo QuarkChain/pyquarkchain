@@ -32,11 +32,11 @@ def _bench(lib_name):
 
     for epoch in range(N_EPOCHS):
         block      = epoch * EPOCH_LENGTH
-        cache_size = get_cache_size(block)
-        full_size  = get_full_size(block)
+        cache_size = get_cache_size(epoch)
+        full_size  = get_full_size(epoch)
 
         t0 = time.perf_counter()
-        cache = mkcache(cache_size, block)
+        cache = mkcache(cache_size, epoch)
         mc_list.append(time.perf_counter() - t0)
 
         t0 = time.perf_counter()
