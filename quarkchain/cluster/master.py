@@ -718,9 +718,9 @@ class SlaveConnection(ClusterConnection):
             self.master_server.root_state.add_validated_minor_block_hash(
                 minor_block_header.get_hash(), coinbase_amount_map.balance_map
             )
-            Logger.info(
-                "adding {} mblock to db".format(minor_block_header.get_hash().hex())
-            )
+#            Logger.info(
+#                "adding {} mblock to db".format(minor_block_header.get_hash().hex())
+#            )
         return AddMinorBlockHeaderListResponse(error_code=0)
 
     async def get_total_balance(
