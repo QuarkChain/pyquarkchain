@@ -30,7 +30,6 @@ def check_pow(
     epoch = block_number // EPOCH_LENGTH
     if is_test:
         cache_size, full_size = 1024, 32 * 1024
-        ethash.set_ethash_lib("python")  # force python impl for non-canonical size
     else:
         cache_size, full_size = (
             get_cache_size(epoch),
@@ -85,8 +84,7 @@ def mine(
 ) -> Tuple[Optional[bytes], Optional[bytes]]:
     epoch = block_number // EPOCH_LENGTH
     if is_test:
-        cache_size, full_size = 1024, 32 * 1024
-        ethash.set_ethash_lib("python")  # force python impl for non-canonical size
+        cache_size, full_size = 1024, 32 * 1024 
     else:
         cache_size, full_size = (
             get_cache_size(epoch),
