@@ -74,9 +74,9 @@ To install the required modules for the project. Under `pyquarkchain` dir where 
 pip install -r requirements.txt
 ```
 
-**pyethash C extension** (`pyethash`): included in `requirements.txt` and installed by `pip install -r requirements.txt` — requires `gcc` to be available. Provides ~57x speedup over pure Python.
+**pyethash C extension** (`pyethash`): included in `requirements.txt` and installed by `pip install -r requirements.txt` — requires `gcc`. Provides ~57x speedup over pure Python.
 
-> **Note:** On systems without `gcc`, `pip` will skip `pyethash` and fall back to pure Python automatically. Ensure `build-essential` (Linux) or Xcode Command Line Tools (macOS) is installed before running `pip install -r requirements.txt`.
+> **Note:** On systems without `gcc`, `pyethash` will not be installed but the project still works (with a pure Python fallback that is much slower for mining). We strongly recommend installing `build-essential` (Linux) or Xcode Command Line Tools (macOS) to build `pyethash`.
 
 Once all the modules are installed, try running all the unit tests under `pyquarkchain`
 

@@ -1471,7 +1471,7 @@ async def _main_async(env):
 
     callbacks = []
     if env.slave_config.WEBSOCKET_JSON_RPC_PORT is not None:
-        json_rpc_websocket_server = JSONRPCWebsocketServer.start_websocket_server(
+        json_rpc_websocket_server = await JSONRPCWebsocketServer.start_websocket_server(
             env, slave_server
         )
         callbacks.append(json_rpc_websocket_server.shutdown)
