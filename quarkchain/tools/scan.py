@@ -2,6 +2,8 @@
 """
 scan.py - QuarkChain DB Scanner
 
+Requires Python 3.6+.
+
 Scans shard RocksDB databases for a time range and outputs TX count and
 active user metrics in Markdown format.
 
@@ -16,8 +18,11 @@ import sys
 from collections import defaultdict
 from datetime import datetime, timezone
 
+if sys.version_info < (3, 6):
+    raise RuntimeError("This script requires Python 3.6 or higher")
+
 # Allow running from any directory
-sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../.."))
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "../.."))
 
 from quarkchain.db import PersistentDb
 from quarkchain.core import MinorBlock
@@ -156,15 +161,15 @@ def _aggregate(records, key_fn):
 
 
 def _day_key(ts):
-    return datetime.utcfromtimestamp(ts).strftime("%Y-%m-%d")
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m-%d")
 
 
 def _month_key(ts):
-    return datetime.utcfromtimestamp(ts).strftime("%Y-%m")
+    return datetime.fromtimestamp(ts, tz=timezone.utc).strftime("%Y-%m")
 
 
 def _quarter_key(ts):
-    dt = datetime.utcfromtimestamp(ts)
+    dt = datetime.fromtimestamp(ts, tz=timezone.utc)
     q  = (dt.month - 1) // 3 + 1
     return f"{dt.year}-Q{q}"
 
