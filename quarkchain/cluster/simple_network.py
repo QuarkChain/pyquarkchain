@@ -421,6 +421,7 @@ class SimpleNetwork(AbstractNetwork):
         self.next_cluster_peer_id = 0
         self.cluster_peer_pool = dict()  # cluster peer id => peer
         self._seed_task = None
+        self._connect_tasks = set()
 
     async def new_peer(self, client_reader, client_writer):
         peer = Peer(
@@ -472,9 +473,11 @@ class SimpleNetwork(AbstractNetwork):
 
         Logger.info("connecting {} peers ...".format(len(resp.peer_info_list)))
         for peer_info in resp.peer_info_list:
-            asyncio.create_task(
+            t = asyncio.create_task(
                 self.connect(str(ipaddress.ip_address(peer_info.ip)), peer_info.port)
             )
+            self._connect_tasks.add(t)
+            t.add_done_callback(self._connect_tasks.discard)
 
         # TODO: Sync with total diff
 
