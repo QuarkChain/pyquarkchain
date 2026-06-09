@@ -34,8 +34,10 @@ def get_work_rpc(
 ) -> MiningWork:
     jrpc_url = "http://{}:{}".format(host, jrpc_port)
     cli = get_jsonrpc_cli(jrpc_url)
-    header_hash, height, diff = cli.call("getWork", hex(full_shard_id) if full_shard_id is not None else None)
-    return MiningWork(bytes.fromhex(header_hash[2:]), int(height, 16), int(diff, 16))
+    header_hash, height, diff, *rest = cli.call("getWork", hex(full_shard_id) if full_shard_id is not None else None)
+    divider = int(rest[0], 16) if rest else 1
+    effective_diff = int(diff, 16) // divider
+    return MiningWork(bytes.fromhex(header_hash[2:]), int(height, 16), effective_diff)
 
 
 def submit_work_rpc(
@@ -185,10 +187,17 @@ class SigHandler:
         self.threads = threads
 
     def __call__(self, signum, frame):
+        print("\nStopping miners...")
         self.stopper.set()
         for thread in self.threads:
-            thread.join()
-        print("Stop mining")
+            thread.join(timeout=5)
+        alive = [t for t in self.threads if t.is_alive()]
+        if alive:
+            print(f"Force-exiting; {len(alive)} thread(s) did not stop in time")
+        else:
+            print("Stopped cleanly")
+        import os
+        os._exit(0)
 
 
 def main():
