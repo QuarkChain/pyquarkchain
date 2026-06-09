@@ -416,7 +416,7 @@ class P2PManager(AbstractNetwork):
         self.port = env.cluster_config.P2P_PORT
 
     async def start(self) -> None:
-        asyncio.create_task(self.server.run())
+        self._server_task = asyncio.create_task(self.server.run())
 
     def iterate_peers(self):
         return [p.secure_peer for p in self.server.peer_pool.connected_nodes.values()]

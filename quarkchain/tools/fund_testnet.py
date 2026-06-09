@@ -15,6 +15,9 @@ class Endpoint:
     def __init__(self, url):
         self.client = AsyncJsonRpcClient(url)
 
+    async def close(self):
+        await self.client.close()
+
     async def __send_request(self, method, *args):
         # manual retry since the library has hard-coded timeouts
         while True:
@@ -161,9 +164,15 @@ def main():
 
     genesisId = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
 
-    endpoint = Endpoint("http://" + args.jrpc_endpoint)
+    async def run():
+        endpoint = Endpoint("http://" + args.jrpc_endpoint)
+        try:
+            await fund(endpoint, genesisId, addrByAmount)
+        finally:
+            await endpoint.close()
+
     addrByAmount = read_addr(args.tqkc_file)
-    asyncio.run(fund(endpoint, genesisId, addrByAmount))
+    asyncio.run(run())
 
 
 if __name__ == "__main__":

@@ -50,10 +50,10 @@ async def jrpc_http_server_context(master):
 
 
 async def send_request(method, params=None):
-    rpc_client = AsyncJsonRpcClient("http://localhost:38391")
-    if params is None:
-        params = []
-    return await rpc_client.call(method, params)
+    async with AsyncJsonRpcClient("http://localhost:38391") as rpc_client:
+        if params is None:
+            params = []
+        return await rpc_client.call(method, params)
 
 
 class TestJSONRPCHttp(unittest.IsolatedAsyncioTestCase):

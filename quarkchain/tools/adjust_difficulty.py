@@ -38,18 +38,22 @@ async def async_adjust_difficulty(args):
                 (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
                 for idx, cluster in enumerate(clusters)
             ]
-            await asyncio.gather(
-                *[
-                    async_adjust(
-                        idx,
-                        server,
-                        num_nodes * args.base_root,
-                        num_nodes * args.base_minor,
-                        not args.do_not_mine,
-                    )
-                    for (idx, server) in servers
-                ]
-            )
+            try:
+                await asyncio.gather(
+                    *[
+                        async_adjust(
+                            idx,
+                            server,
+                            num_nodes * args.base_root,
+                            num_nodes * args.base_minor,
+                            not args.do_not_mine,
+                        )
+                        for (idx, server) in servers
+                    ]
+                )
+            finally:
+                for _, server in servers:
+                    await server.close()
             print(
                 "Successfully set {} nodes to root={},minor={} @{}".format(
                     num_nodes,
@@ -101,12 +105,16 @@ async def adjust_imbalanced_hashpower(args):
         poor_root = num_nodes * args.base_root * 9
         poor_minor = num_nodes * args.base_minor * 9
 
-        await asyncio.gather(
-            *[
-                async_adjust(idx, server, rich_root, rich_minor, not args.do_not_mine)
-                for (idx, server) in servers_rich
-            ]
-        )
+        try:
+            await asyncio.gather(
+                *[
+                    async_adjust(idx, server, rich_root, rich_minor, not args.do_not_mine)
+                    for (idx, server) in servers_rich
+                ]
+            )
+        finally:
+            for _, server in servers_rich:
+                await server.close()
         print(
             "Successfully set {} nodes to root={},minor={} @{}".format(
                 len(servers_rich), rich_root, rich_minor, datetime.now()
@@ -114,12 +122,16 @@ async def adjust_imbalanced_hashpower(args):
         )
         print("rich clusters: ", clusters_rich)
 
-        await asyncio.gather(
-            *[
-                async_adjust(idx, server, poor_root, poor_minor, not args.do_not_mine)
-                for (idx, server) in servers_poor
-            ]
-        )
+        try:
+            await asyncio.gather(
+                *[
+                    async_adjust(idx, server, poor_root, poor_minor, not args.do_not_mine)
+                    for (idx, server) in servers_poor
+                ]
+            )
+        finally:
+            for _, server in servers_poor:
+                await server.close()
         print(
             "Successfully set {} nodes to root={},minor={} @{}".format(
                 len(servers_poor), poor_root, poor_minor, datetime.now()

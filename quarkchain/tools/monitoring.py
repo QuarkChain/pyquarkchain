@@ -163,10 +163,14 @@ async def async_watch(clusters):
         (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
         for idx, cluster in enumerate(clusters)
     ]
-    while True:
-        await asyncio.gather(*[async_stats(idx, server) for (idx, server) in servers])
-        print("... as of {}".format(datetime.now()))
-        await asyncio.sleep(CONST_INTERVAL)
+    try:
+        while True:
+            await asyncio.gather(*[async_stats(idx, server) for (idx, server) in servers])
+            print("... as of {}".format(datetime.now()))
+            await asyncio.sleep(CONST_INTERVAL)
+    finally:
+        for _, server in servers:
+            await server.close()
 
 
 def watch_nodes_stats(ip, p2p_port, jrpc_port, ip_lookup={}):
