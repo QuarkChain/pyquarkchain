@@ -191,7 +191,11 @@ class SigHandler:
         self.stopper.set()
         for thread in self.threads:
             thread.join(timeout=5)
-        print("Stop mining")
+        alive = [t for t in self.threads if t.is_alive()]
+        if alive:
+            print(f"Force-exiting; {len(alive)} thread(s) did not stop in time")
+        else:
+            print("Stopped cleanly")
         import os
         os._exit(0)
 
