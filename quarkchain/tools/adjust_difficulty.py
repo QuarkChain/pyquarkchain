@@ -96,10 +96,6 @@ async def adjust_imbalanced_hashpower(args):
             (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
             for idx, cluster in enumerate(clusters_rich)
         ]
-        servers_poor = [
-            (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
-            for idx, cluster in enumerate(clusters_poor)
-        ]
         rich_root = int(num_nodes * args.base_root / 9)
         rich_minor = int(num_nodes * args.base_minor / 9)
         poor_root = num_nodes * args.base_root * 9
@@ -122,6 +118,10 @@ async def adjust_imbalanced_hashpower(args):
         )
         print("rich clusters: ", clusters_rich)
 
+        servers_poor = [
+            (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
+            for idx, cluster in enumerate(clusters_poor)
+        ]
         try:
             await asyncio.gather(
                 *[
