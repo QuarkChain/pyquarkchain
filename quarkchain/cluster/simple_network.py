@@ -503,6 +503,8 @@ class SimpleNetwork(AbstractNetwork):
         self.shutdown_peers()
         if self._seed_task and not self._seed_task.done():
             self._seed_task.cancel()
+        for t in list(self._connect_tasks):
+            t.cancel()
         self.server.close()
         await self.server.wait_closed()
 
