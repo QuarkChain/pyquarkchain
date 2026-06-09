@@ -475,7 +475,9 @@ class Synchronizer:
         self.queue.append((header, shard_conn))
         if not self.running:
             self.running = True
-            asyncio.ensure_future(self.__run())
+            # keep a strong reference so the loop's weak ref doesn't let GC
+            # collect the running sync task mid-execution (would deadlock sync)
+            self._run_task = asyncio.ensure_future(self.__run())
             if self.counter % 10 == 0:
                 self.__call_notify_sync()
                 self.counter = 0

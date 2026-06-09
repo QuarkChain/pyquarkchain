@@ -358,7 +358,9 @@ class Synchronizer:
         )
         if not self.running:
             self.running = True
-            asyncio.ensure_future(self.__run())
+            # keep a strong reference so the loop's weak ref doesn't let GC
+            # collect the running sync task mid-execution (would deadlock sync)
+            self._run_task = asyncio.ensure_future(self.__run())
 
     def get_stats(self):
         def _task_to_dict(peer, header):
@@ -1861,7 +1863,9 @@ async def _main_async(env):
     if env.arguments.check_db:
         master.start()
         await master.wait_until_cluster_active()
-        asyncio.create_task(master.check_db())
+        # hold a reference so the long-running check task isn't GC'd while
+        # do_loop() blocks on the shutdown future
+        check_db_task = asyncio.create_task(master.check_db())
         await master.do_loop([])
         return
 
@@ -1879,7 +1883,7 @@ async def _main_async(env):
 
         # kick off simulated mining if enabled
         if env.cluster_config.START_SIMULATED_MINING:
-            asyncio.create_task(master.start_mining())
+            await master.start_mining()
 
     if env.cluster_config.use_p2p():
         network = P2PManager(env, master)

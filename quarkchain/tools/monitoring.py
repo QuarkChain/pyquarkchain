@@ -45,7 +45,10 @@ async def fetch_peers_async(node):
     except Exception:
         print("Failed to get peers from {}".format(json_rpc_url))
         peers = {"peers": []}
-    await server.close()
+    finally:
+        # finally (not a bare call) so the client is closed even on
+        # CancelledError, which is a BaseException and skips except Exception
+        await server.close()
     return [
         (
             str(ipaddress.ip_address(int(p["ip"], 16))),
