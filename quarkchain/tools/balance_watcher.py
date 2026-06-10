@@ -32,7 +32,7 @@ def query(endpoint, *args):
 def query_balance(recipient, chain_id, token_str):
     resp = query(
         "getBalances",
-        "0x" + recipient.lower().lstrip("0x") + chain_id.to_bytes(2, byteorder="big").hex() + "0000",
+        "0x" + recipient.lower().removeprefix("0x") + chain_id.to_bytes(2, byteorder="big").hex() + "0000",
     )
     for balance in resp["balances"]:
         if balance["tokenStr"] == token_str:

@@ -1625,8 +1625,7 @@ async def get_websocket(port=38590):
 
 class TestJSONRPCWebsocket(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
-        self.loop = asyncio.get_event_loop()
-        self.loop.set_debug(False)
+        pass
 
     async def test_new_heads(self):
         id1 = Identity.create_random_identity()

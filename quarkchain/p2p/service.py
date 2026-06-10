@@ -319,17 +319,6 @@ class BaseService(ABC, CancellableMixin):
     def is_running(self) -> bool:
         return self._run_lock.locked()
 
-    async def threadsafe_cancel(self) -> None:
-        """
-        Cancel service in another thread. Block until service is cleaned up.
-
-        :param poll_period: how many seconds to wait in between each check for service cleanup
-        """
-        asyncio.run_coroutine_threadsafe(self.cancel(), loop=self.get_event_loop())
-        await asyncio.wait_for(
-            self.events.cleaned_up.wait(), timeout=self._wait_until_finished_timeout
-        )
-
     async def sleep(self, delay: float) -> None:
         """Coroutine that completes after a given time (in seconds)."""
         await self.wait(asyncio.sleep(delay))
