@@ -353,9 +353,12 @@ class MasterConnection(ClusterConnection):
         # wait for all the connections to become active before return
         await asyncio.gather(*active_futures)
 
-        # Make peer connection available to shard once they are active
+        # Make peer connection available to shard once they are active.
+        # Skip connections that died before becoming active (active_event is also
+        # set in the finally block of active_and_loop_forever on early close).
         for shard, peer_shard_conn in shard_to_conn.items():
-            shard.add_peer(peer_shard_conn)
+            if peer_shard_conn.is_active():
+                shard.add_peer(peer_shard_conn)
 
         return CreateClusterPeerConnectionResponse(error_code=0)
 

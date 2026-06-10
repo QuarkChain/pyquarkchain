@@ -597,7 +597,8 @@ class Shard:
             conns.append(peer_shard_conn)
         await asyncio.gather(*[conn.active_event.wait() for conn in conns])
         for conn in conns:
-            self.add_peer(conn)
+            if conn.is_active():
+                self.add_peer(conn)
 
     async def __init_genesis_state(self, root_block: RootBlock):
         block, coinbase_amount_map = self.state.init_genesis_state(root_block)
