@@ -38,18 +38,21 @@ async def async_adjust_difficulty(args):
                 (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
                 for idx, cluster in enumerate(clusters)
             ]
-            await asyncio.gather(
-                *[
-                    async_adjust(
-                        idx,
-                        server,
-                        num_nodes * args.base_root,
-                        num_nodes * args.base_minor,
-                        not args.do_not_mine,
-                    )
-                    for (idx, server) in servers
-                ]
-            )
+            try:
+                await asyncio.gather(
+                    *[
+                        async_adjust(
+                            idx,
+                            server,
+                            num_nodes * args.base_root,
+                            num_nodes * args.base_minor,
+                            not args.do_not_mine,
+                        )
+                        for (idx, server) in servers
+                    ]
+                )
+            finally:
+                await asyncio.gather(*[s.close() for (_, s) in servers])
             print(
                 "Successfully set {} nodes to root={},minor={} @{}".format(
                     num_nodes,
@@ -101,31 +104,34 @@ async def adjust_imbalanced_hashpower(args):
         poor_root = num_nodes * args.base_root * 9
         poor_minor = num_nodes * args.base_minor * 9
 
-        await asyncio.gather(
-            *[
-                async_adjust(idx, server, rich_root, rich_minor, not args.do_not_mine)
-                for (idx, server) in servers_rich
-            ]
-        )
-        print(
-            "Successfully set {} nodes to root={},minor={} @{}".format(
-                len(servers_rich), rich_root, rich_minor, datetime.now()
+        try:
+            await asyncio.gather(
+                *[
+                    async_adjust(idx, server, rich_root, rich_minor, not args.do_not_mine)
+                    for (idx, server) in servers_rich
+                ]
             )
-        )
-        print("rich clusters: ", clusters_rich)
+            print(
+                "Successfully set {} nodes to root={},minor={} @{}".format(
+                    len(servers_rich), rich_root, rich_minor, datetime.now()
+                )
+            )
+            print("rich clusters: ", clusters_rich)
 
-        await asyncio.gather(
-            *[
-                async_adjust(idx, server, poor_root, poor_minor, not args.do_not_mine)
-                for (idx, server) in servers_poor
-            ]
-        )
-        print(
-            "Successfully set {} nodes to root={},minor={} @{}".format(
-                len(servers_poor), poor_root, poor_minor, datetime.now()
+            await asyncio.gather(
+                *[
+                    async_adjust(idx, server, poor_root, poor_minor, not args.do_not_mine)
+                    for (idx, server) in servers_poor
+                ]
             )
-        )
-        print("poor clusters: ", clusters_poor)
+            print(
+                "Successfully set {} nodes to root={},minor={} @{}".format(
+                    len(servers_poor), poor_root, poor_minor, datetime.now()
+                )
+            )
+            print("poor clusters: ", clusters_poor)
+        finally:
+            await asyncio.gather(*[s.close() for (_, s) in servers_rich + servers_poor])
     except Exception as ex:
         print("Got Exception: {}".format(ex, args.interval))
         pass

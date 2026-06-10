@@ -64,4 +64,10 @@ class AsyncJsonRpcClient:
         return data.get("result")
 
     async def close(self):
-        await self.client.aclose()        
+        await self.client.aclose()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, exc_type, exc, tb):
+      await self.close()

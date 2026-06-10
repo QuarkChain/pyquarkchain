@@ -12,6 +12,12 @@ class Endpoint:
     def __init__(self, url):
         self.client = AsyncJsonRpcClient(url)
 
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *args):
+        await self.client.close()
+
     async def __send_request(self, method, *args):
         response = await self.client.call(method, *args)
         return response
@@ -106,8 +112,11 @@ def main():
     data = bytes.fromhex(args.data)
     genesisId = Identity.create_from_key(DEFAULT_ENV.config.GENESIS_KEY)
 
-    endpoint = Endpoint("http://" + args.jrpc_endpoint)
-    asyncio.run(deploy(endpoint, genesisId, data))
+    async def _run():
+        async with Endpoint("http://" + args.jrpc_endpoint) as endpoint:
+            await deploy(endpoint, genesisId, data)
+
+    asyncio.run(_run())
 
 
 if __name__ == "__main__":

@@ -39,13 +39,12 @@ async def fetch_peers_async(node):
     :return: list of tuple(ip, p2p_port, jrpc_port)
     """
     json_rpc_url = "http://{}:{}".format(node[0], node[2])
-    server = AsyncJsonRpcClient(json_rpc_url, timeout=5)
-    try:
-        peers = await server.call("getPeers")
-    except Exception:
-        print("Failed to get peers from {}".format(json_rpc_url))
-        peers = {"peers": []}
-    await server.close()
+    async with AsyncJsonRpcClient(json_rpc_url, timeout=5) as server:
+        try:
+            peers = await server.call("getPeers")
+        except Exception:
+            print("Failed to get peers from {}".format(json_rpc_url))
+            peers = {"peers": []}
     return [
         (
             str(ipaddress.ip_address(int(p["ip"], 16))),
@@ -163,10 +162,13 @@ async def async_watch(clusters):
         (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
         for idx, cluster in enumerate(clusters)
     ]
-    while True:
-        await asyncio.gather(*[async_stats(idx, server) for (idx, server) in servers])
-        print("... as of {}".format(datetime.now()))
-        await asyncio.sleep(CONST_INTERVAL)
+    try:
+        while True:
+            await asyncio.gather(*[async_stats(idx, server) for (idx, server) in servers])
+            print("... as of {}".format(datetime.now()))
+            await asyncio.sleep(CONST_INTERVAL)
+    finally:
+        await asyncio.gather(*[server.close() for (_, server) in servers])
 
 
 def watch_nodes_stats(ip, p2p_port, jrpc_port, ip_lookup={}):
