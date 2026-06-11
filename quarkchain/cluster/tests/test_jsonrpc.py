@@ -1,4 +1,3 @@
-import asyncio
 import json
 import unittest
 from contextlib import asynccontextmanager
@@ -1624,9 +1623,6 @@ async def get_websocket(port=38590):
 
 
 class TestJSONRPCWebsocket(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        pass
-
     async def test_new_heads(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
