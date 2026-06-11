@@ -92,8 +92,11 @@ class RpcMethods:
     async def dispatch(self, request_json: Dict[str, Any], context=None) -> Optional[Dict[str, Any]]:
         req_id = None
         is_notification = False
+        method = ""
 
         try:
+            if isinstance(request_json, list):
+                raise InvalidRequest("Batch requests not supported")
             if not isinstance(request_json, dict):
                 raise InvalidRequest("Request must be object")
 
@@ -147,7 +150,7 @@ class RpcMethods:
                 "id": req_id,
             }
         except Exception:
-            logger.exception("Internal JSON-RPC error for method %s", locals().get("method", "<unknown>"))
+            logger.exception("Internal JSON-RPC error for method %s", method)
             if is_notification:
                 return None
             return {
