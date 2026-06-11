@@ -220,7 +220,10 @@ class Miner:
                     # spawns a fresh subprocess instead of posting work to the
                     # dead one (which would silently never mine).
                     if self.process:
-                        self.process.join()
+                        # Use coro_join (runs join in an executor) instead of the
+                        # blocking join() so reaping the subprocess does not stall
+                        # the event loop.
+                        await self.process.coro_join()
                         self.process = None
                     return  # empty result means ending
                 # start mining before processing and propagating mined block
