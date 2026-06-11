@@ -1,5 +1,6 @@
 import asyncio
 import unittest
+from unittest.mock import AsyncMock, MagicMock
 
 from eth_keys.datatypes import PrivateKey
 
@@ -9,11 +10,13 @@ from quarkchain.cluster.p2p_commands import (
     GetMinorBlockHeaderListWithSkipRequest,
     Direction,
 )
+from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
     create_contract_with_storage2_transaction,
     mock_pay_native_token_as_gas,
     ClusterContext,
+    get_test_env,
 )
 from quarkchain.config import ConsensusType
 from quarkchain.core import (
@@ -25,6 +28,7 @@ from quarkchain.core import (
     RootBlock,
 )
 from quarkchain.evm import opcodes
+from quarkchain.genesis import GenesisManager
 from quarkchain.utils import (
     async_assert_true_with_timeout,
     sha3_256,
@@ -2622,3 +2626,85 @@ class TestCluster(unittest.IsolatedAsyncioTestCase):
                     qkc_token, state2.header_tip.get_hash(), rh, 100, None
                 )
                 self.assertEqual(balance, init_coinbase + 100)
+
+
+def _make_finalized_shard_block(shard_state):
+    block = shard_state.get_tip().create_block_to_append()
+    evm_state = shard_state.run_block(block)
+    coinbase_amount_map = shard_state.get_coinbase_amount_map(block.header.height)
+    coinbase_amount_map.add(evm_state.block_fee_tokens)
+    block.finalize(evm_state=evm_state, coinbase_amount_map=coinbase_amount_map)
+    return block
+
+
+class TestAddBlockCancellation(unittest.IsolatedAsyncioTestCase):
+    """
+    Regression: cancelled add_block left the future in add_block_futures permanently
+    pending, causing any subsequent add_block / add_block_list_for_sync for the same
+    block to hang forever and stopping shard sync until process restart.
+    """
+
+    def _make_shard(self):
+        env = get_test_env()
+        slave = MagicMock()
+        full_shard_id = next(iter(env.quark_chain_config.shards))
+        shard = Shard(env, full_shard_id, slave)
+        genesis_manager = GenesisManager(env.quark_chain_config)
+        shard.state.init_genesis_state(genesis_manager.create_root_block())
+        return shard
+
+    async def test_cancelled_add_block_resolves_future(self):
+        """add_block cancelled at broadcast must not leave a permanently-pending future."""
+        shard = self._make_shard()
+        block = _make_finalized_shard_block(shard.state)
+        block_hash = block.header.get_hash()
+
+        broadcast_started = asyncio.Event()
+
+        async def hanging_broadcast(*args, **kwargs):
+            broadcast_started.set()
+            await asyncio.sleep(9999)
+
+        shard.slave.broadcast_xshard_tx_list = hanging_broadcast
+
+        task = asyncio.create_task(shard.add_block(block))
+        await broadcast_started.wait()
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
+        self.assertNotIn(
+            block_hash,
+            shard.add_block_futures,
+            "Cancelled add_block must clean up the future from add_block_futures",
+        )
+
+    async def test_waiter_unblocks_when_add_block_is_interrupted(self):
+        """
+        A second caller waiting on BLOCK_COMMITTING must unblock and return False
+        when the first caller is interrupted — not hang forever.
+        """
+        shard = self._make_shard()
+        block = _make_finalized_shard_block(shard.state)
+
+        broadcast_started = asyncio.Event()
+
+        async def hanging_broadcast(*args, **kwargs):
+            broadcast_started.set()
+            await asyncio.sleep(9999)
+
+        shard.slave.broadcast_xshard_tx_list = hanging_broadcast
+
+        add_task = asyncio.create_task(shard.add_block(block))
+        await broadcast_started.wait()
+
+        # Second caller arrives while the first is in-flight (BLOCK_COMMITTING)
+        waiter_task = asyncio.create_task(shard.add_block(block))
+        await asyncio.sleep(0)  # let waiter enter the BLOCK_COMMITTING branch
+
+        add_task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await add_task
+
+        result = await asyncio.wait_for(waiter_task, timeout=5.0)
+        self.assertFalse(result, "Waiter for an interrupted block should return False")

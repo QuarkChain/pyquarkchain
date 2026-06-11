@@ -196,9 +196,12 @@ class AbstractConnection:
             while self.state == ConnectionState.ACTIVE:
                 await self.loop_once()
         finally:
-            # Cancel any in-flight handler tasks
-            for task in self._handler_tasks:
-                task.cancel()
+            # Do NOT cancel in-flight handler tasks.  Critical handlers such as
+            # Shard.add_block register futures that waiters depend on; cancelling
+            # them mid-flight leaves those futures permanently pending and causes
+            # the shard to stop syncing until the process restarts.  Tasks that
+            # encounter a dead connection will fail naturally when their next RPC
+            # attempt raises RuntimeError (via rpc_future_map abort below).
             self._handler_tasks.clear()
 
             # Ensure active_event is set so wait_until_active() callers are not stuck

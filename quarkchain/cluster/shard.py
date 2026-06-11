@@ -755,7 +755,10 @@ class Shard:
                     block.header.branch.to_str(), block.header.height
                 )
             )
-            await future
+            try:
+                await future
+            except Exception:
+                return False
             return True
 
         check(commit_status == BLOCK_UNCOMMITTED)
@@ -780,27 +783,35 @@ class Shard:
 
         # Add the block in future and wait
         self.add_block_futures[block_hash] = self.loop.create_future()
+        try:
+            prev_root_height = self.state.db.get_root_block_header_by_hash(
+                block.header.hash_prev_root_block
+            ).height
+            await self.slave.broadcast_xshard_tx_list(block, xshard_list, prev_root_height)
+            await self.slave.send_minor_block_header_to_master(
+                block.header,
+                len(block.tx_list),
+                len(xshard_list),
+                coinbase_amount_map,
+                self.state.get_shard_stats(),
+            )
 
-        prev_root_height = self.state.db.get_root_block_header_by_hash(
-            block.header.hash_prev_root_block
-        ).height
-        await self.slave.broadcast_xshard_tx_list(block, xshard_list, prev_root_height)
-        await self.slave.send_minor_block_header_to_master(
-            block.header,
-            len(block.tx_list),
-            len(xshard_list),
-            coinbase_amount_map,
-            self.state.get_shard_stats(),
-        )
+            # Commit the block
+            self.state.commit_by_hash(block_hash)
+            Logger.debug("committed mblock {}".format(block_hash.hex()))
 
-        # Commit the block
-        self.state.commit_by_hash(block_hash)
-        Logger.debug("committed mblock {}".format(block_hash.hex()))
-
-        # Notify the rest
-        self.add_block_futures[block_hash].set_result(None)
-        del self.add_block_futures[block_hash]
-        return True
+            # Notify the rest
+            self.add_block_futures[block_hash].set_result(None)
+            del self.add_block_futures[block_hash]
+            return True
+        except BaseException as e:
+            fut = self.add_block_futures.pop(block_hash, None)
+            if fut is not None and not fut.done():
+                # Unblock any coroutine waiting on this future so it does not hang
+                # forever.  Use RuntimeError to avoid propagating CancelledError
+                # into a non-cancelled waiter.
+                fut.set_exception(RuntimeError("add_block interrupted: {}".format(e)))
+            raise
 
     def check_minor_block_by_header(self, header):
         """ Raise exception of the block is invalid
@@ -876,28 +887,40 @@ class Shard:
                 block.header.coinbase_amount_map
             )
 
-        await self.slave.batch_broadcast_xshard_tx_list(
-            block_hash_to_x_shard_list, block_list[0].header.branch
-        )
-        check(
-            len(uncommitted_coinbase_amount_map_list)
-            == len(uncommitted_block_header_list)
-        )
-        await self.slave.send_minor_block_header_list_to_master(
-            uncommitted_block_header_list, uncommitted_coinbase_amount_map_list
-        )
+        try:
+            await self.slave.batch_broadcast_xshard_tx_list(
+                block_hash_to_x_shard_list, block_list[0].header.branch
+            )
+            check(
+                len(uncommitted_coinbase_amount_map_list)
+                == len(uncommitted_block_header_list)
+            )
+            await self.slave.send_minor_block_header_list_to_master(
+                uncommitted_block_header_list, uncommitted_coinbase_amount_map_list
+            )
 
-        # Commit all blocks and notify all rest add block operations
-        for block_header in uncommitted_block_header_list:
-            block_hash = block_header.get_hash()
-            self.state.commit_by_hash(block_hash)
-            Logger.debug("committed mblock {}".format(block_hash.hex()))
+            # Commit all blocks and notify all rest add block operations
+            for block_header in uncommitted_block_header_list:
+                block_hash = block_header.get_hash()
+                self.state.commit_by_hash(block_hash)
+                Logger.debug("committed mblock {}".format(block_hash.hex()))
 
-            self.add_block_futures[block_hash].set_result(None)
-            del self.add_block_futures[block_hash]
+                self.add_block_futures[block_hash].set_result(None)
+                del self.add_block_futures[block_hash]
+        except BaseException as e:
+            for block_header in uncommitted_block_header_list:
+                block_hash = block_header.get_hash()
+                fut = self.add_block_futures.pop(block_hash, None)
+                if fut is not None and not fut.done():
+                    fut.set_exception(RuntimeError("add_block_list_for_sync interrupted: {}".format(e)))
+            raise
 
-        # Wait for the other add block operations
-        await asyncio.gather(*existing_add_block_futures)
+        # Wait for blocks that were already in-flight when we started.
+        # If any were interrupted (future holds an exception), treat this batch as failed.
+        try:
+            await asyncio.gather(*existing_add_block_futures)
+        except Exception:
+            return False, None
 
         return True, coinbase_amount_list
 
