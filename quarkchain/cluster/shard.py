@@ -811,6 +811,10 @@ class Shard:
                 # forever.  Use RuntimeError to avoid propagating CancelledError
                 # into a non-cancelled waiter.
                 fut.set_exception(RuntimeError("add_block interrupted: {}".format(e)))
+                # Mark the exception as retrieved so asyncio does not log
+                # "Future exception was never retrieved" when no waiter consumes
+                # it (the common single-caller cancellation case).
+                fut.exception()
             raise
 
     def check_minor_block_by_header(self, header):
@@ -822,6 +826,27 @@ class Shard:
         if header.height == 0:
             return
         self.state.add_block(block, force=True, write_db=False, skip_if_too_old=False)
+
+    def _abort_uncommitted_add_block_futures(self, uncommitted_block_header_list, reason):
+        """Fail the add_block_futures we created for the given headers.
+
+        Waiters (and retries that would otherwise see BLOCK_COMMITTING and
+        gather() on these futures) must not hang forever.  Use RuntimeError, not
+        cancellation, so a non-cancelled waiter takes its `except Exception`
+        path instead of having CancelledError propagated into it.
+        """
+        for block_header in uncommitted_block_header_list:
+            block_hash = block_header.get_hash()
+            fut = self.add_block_futures.pop(block_hash, None)
+            if fut is not None and not fut.done():
+                fut.set_exception(
+                    RuntimeError(
+                        "add_block_list_for_sync interrupted: {}".format(reason)
+                    )
+                )
+                # Mark retrieved to avoid asyncio's "Future exception was never
+                # retrieved" log noise when no waiter consumes it.
+                fut.exception()
 
     async def add_block_list_for_sync(self, block_list):
         """ Add blocks in batch to reduce RPCs. Will NOT broadcast to peers.
@@ -840,54 +865,61 @@ class Shard:
         block_hash_to_x_shard_list = dict()
         uncommitted_block_header_list = []
         uncommitted_coinbase_amount_map_list = []
-        for block in block_list:
-            check(block.header.branch.get_full_shard_id() == self.full_shard_id)
-
-            block_hash = block.header.get_hash()
-            # adding the block header one assuming the block will be validated.
-            coinbase_amount_list.append(block.header.coinbase_amount_map)
-
-            commit_status, future = self.__get_block_commit_status_by_hash(block_hash)
-            if commit_status == BLOCK_COMMITTED:
-                # Skip processing the block if it is already committed
-                Logger.warning(
-                    "minor block to sync {} is already committed".format(
-                        block_hash.hex()
-                    )
-                )
-                continue
-            elif commit_status == BLOCK_COMMITTING:
-                # Check if the block is being propagating to other slaves and the master
-                # Let's make sure all the shards and master got it before committing it
-                Logger.info(
-                    "[{}] {} is being added ... waiting for it to finish".format(
-                        block.header.branch.to_str(), block.header.height
-                    )
-                )
-                existing_add_block_futures.append(future)
-                continue
-
-            check(commit_status == BLOCK_UNCOMMITTED)
-            # Validate and add the block
-            try:
-                xshard_list, coinbase_amount_map = self.state.add_block(
-                    block, skip_if_too_old=False, force=True
-                )
-            except Exception as e:
-                Logger.error_exception()
-                return False, None
-
-            prev_root_height = self.state.db.get_root_block_header_by_hash(
-                block.header.hash_prev_root_block
-            ).height
-            block_hash_to_x_shard_list[block_hash] = (xshard_list, prev_root_height)
-            self.add_block_futures[block_hash] = self.loop.create_future()
-            uncommitted_block_header_list.append(block.header)
-            uncommitted_coinbase_amount_map_list.append(
-                block.header.coinbase_amount_map
-            )
-
         try:
+            for block in block_list:
+                check(block.header.branch.get_full_shard_id() == self.full_shard_id)
+
+                block_hash = block.header.get_hash()
+                # adding the block header one assuming the block will be validated.
+                coinbase_amount_list.append(block.header.coinbase_amount_map)
+
+                commit_status, future = self.__get_block_commit_status_by_hash(
+                    block_hash
+                )
+                if commit_status == BLOCK_COMMITTED:
+                    # Skip processing the block if it is already committed
+                    Logger.warning(
+                        "minor block to sync {} is already committed".format(
+                            block_hash.hex()
+                        )
+                    )
+                    continue
+                elif commit_status == BLOCK_COMMITTING:
+                    # Check if the block is being propagating to other slaves and the master
+                    # Let's make sure all the shards and master got it before committing it
+                    Logger.info(
+                        "[{}] {} is being added ... waiting for it to finish".format(
+                            block.header.branch.to_str(), block.header.height
+                        )
+                    )
+                    existing_add_block_futures.append(future)
+                    continue
+
+                check(commit_status == BLOCK_UNCOMMITTED)
+                # Validate and add the block
+                try:
+                    xshard_list, coinbase_amount_map = self.state.add_block(
+                        block, skip_if_too_old=False, force=True
+                    )
+                except Exception:
+                    Logger.error_exception()
+                    # `return` skips the `except BaseException` below, so clean up
+                    # the futures we already created before bailing out.
+                    self._abort_uncommitted_add_block_futures(
+                        uncommitted_block_header_list, "block validation failed"
+                    )
+                    return False, None
+
+                prev_root_height = self.state.db.get_root_block_header_by_hash(
+                    block.header.hash_prev_root_block
+                ).height
+                block_hash_to_x_shard_list[block_hash] = (xshard_list, prev_root_height)
+                self.add_block_futures[block_hash] = self.loop.create_future()
+                uncommitted_block_header_list.append(block.header)
+                uncommitted_coinbase_amount_map_list.append(
+                    block.header.coinbase_amount_map
+                )
+
             await self.slave.batch_broadcast_xshard_tx_list(
                 block_hash_to_x_shard_list, block_list[0].header.branch
             )
@@ -908,11 +940,9 @@ class Shard:
                 self.add_block_futures[block_hash].set_result(None)
                 del self.add_block_futures[block_hash]
         except BaseException as e:
-            for block_header in uncommitted_block_header_list:
-                block_hash = block_header.get_hash()
-                fut = self.add_block_futures.pop(block_hash, None)
-                if fut is not None and not fut.done():
-                    fut.set_exception(RuntimeError("add_block_list_for_sync interrupted: {}".format(e)))
+            self._abort_uncommitted_add_block_futures(
+                uncommitted_block_header_list, e
+            )
             raise
 
         # Wait for blocks that were already in-flight when we started.
