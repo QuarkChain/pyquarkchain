@@ -147,9 +147,9 @@ class RpcMethods:
                 "id": req_id,
             }
         except Exception:
+            logger.exception("Internal JSON-RPC error for method %s", locals().get("method", "<unknown>"))
             if is_notification:
                 return None
-            logger.exception("Internal JSON-RPC error for method %s", locals().get("method", "<unknown>"))
             return {
                 "jsonrpc": "2.0",
                 "error": {

@@ -2219,6 +2219,39 @@ class TestJSONRPCWebsocket(unittest.IsolatedAsyncioTestCase):
             response = json.loads(await websocket.recv())
             self.assertTrue(response["error"])
 
+    async def test_malformed_json_keeps_connection_alive(self):
+        # Malformed JSON must get a -32700 Parse error reply WITHOUT killing the
+        # connection (which would silently drop every subscription on it). After
+        # the error, a valid request on the same socket must still succeed.
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        async with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38601
+        ):
+            websocket = await get_websocket(port=38601)
+
+            # send invalid JSON -> expect a -32700 reply, not a closed socket
+            await websocket.send("{not valid json")
+            response = json.loads(await websocket.recv())
+            self.assertEqual(response["error"]["code"], -32700)
+            self.assertEqual(response["error"]["message"], "Parse error")
+            self.assertIsNone(response["id"])
+
+            # connection is still alive: a valid subscribe on the same socket works
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newHeads", "0x00000002"],
+                "id": 7,
+            }
+            await websocket.send(json.dumps(request))
+            response = json.loads(await websocket.recv())
+            self.assertEqual(response["id"], 7)
+            self.assertEqual(len(response["result"]), 34)
+
 
 # Reuse the standard JSON-RPC port (38391). unittest runs sequentially and each
 # fixture binds/releases inside its own ``async with``, the same way

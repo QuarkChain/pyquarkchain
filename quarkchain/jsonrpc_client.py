@@ -32,6 +32,8 @@ class JsonRpcClient:
             raise JsonRpcError({"code": -32600, "message": f"response id {data.get('id')!r} does not match request id {payload['id']!r}"})
         if "error" in data:
             raise JsonRpcError(data["error"])
+        if data.get("id") != payload["id"]:
+            raise JsonRpcError({"code": -32600, "message": f"response id {data.get('id')!r} does not match request id {payload['id']!r}"})
 
         return data.get("result")
 
@@ -64,6 +66,8 @@ class AsyncJsonRpcClient:
             raise JsonRpcError({"code": -32600, "message": f"response id {data.get('id')!r} does not match request id {payload['id']!r}"})
         if "error" in data:
             raise JsonRpcError(data["error"])
+        if data.get("id") != payload["id"]:
+            raise JsonRpcError({"code": -32600, "message": f"response id {data.get('id')!r} does not match request id {payload['id']!r}"})
 
         return data.get("result")
 
