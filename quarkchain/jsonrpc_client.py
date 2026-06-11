@@ -28,6 +28,8 @@ class JsonRpcClient:
         resp.raise_for_status()
         data = resp.json()
 
+        if data.get("id") != payload["id"]:
+            raise JsonRpcError({"code": -32600, "message": f"response id {data.get('id')!r} does not match request id {payload['id']!r}"})
         if "error" in data:
             raise JsonRpcError(data["error"])
 
@@ -58,10 +60,12 @@ class AsyncJsonRpcClient:
         resp.raise_for_status()
         data = resp.json()
 
+        if data.get("id") != payload["id"]:
+            raise JsonRpcError({"code": -32600, "message": f"response id {data.get('id')!r} does not match request id {payload['id']!r}"})
         if "error" in data:
             raise JsonRpcError(data["error"])
 
         return data.get("result")
 
     async def close(self):
-        await self.client.aclose()        
+        await self.client.aclose()
