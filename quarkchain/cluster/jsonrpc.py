@@ -34,7 +34,7 @@ from cachetools import LRUCache
 import uuid
 from quarkchain.cluster.log_filter import LogFilter
 from quarkchain.cluster.subscription import SUB_LOGS
-from quarkchain.cluster.jsonrpc_server import RpcMethods, InvalidParams
+from quarkchain.cluster.jsonrpc_server import InvalidRequest, RpcMethods, InvalidParams, ServerError
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
