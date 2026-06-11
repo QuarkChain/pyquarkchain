@@ -199,18 +199,29 @@ class Miner:
     def disable(self):
         """Stop the mining process if there is one"""
         if self.enabled and self.process:
-            # end the mining process
+            # Signal the subprocess to stop.  The None sentinel will be read by
+            # handle_mined_block which then exits cleanly.  Do NOT also cancel
+            # the task: cancelling leaves the sentinel in output_q unconsumed,
+            # so the next start() reads a stale None and exits immediately.
             self.input_q.put((None, {}))
-        self.enabled = False
-        if self._mining_task and not self._mining_task.done():
+        elif self._mining_task and not self._mining_task.done():
+            # No subprocess to signal; cancel the task directly.
             self._mining_task.cancel()
-            self._mining_task = None
+        self.enabled = False
+        self._mining_task = None
 
     def _mine_new_block_async(self):
         async def handle_mined_block():
             while True:
                 res = await self.output_q.coro_get()  # type: MiningResult
                 if not res:
+                    # The subprocess has put its terminating sentinel and is
+                    # exiting.  Reset the process handle so a subsequent start()
+                    # spawns a fresh subprocess instead of posting work to the
+                    # dead one (which would silently never mine).
+                    if self.process:
+                        self.process.join()
+                        self.process = None
                     return  # empty result means ending
                 # start mining before processing and propagating mined block
                 self._mine_new_block_async()
