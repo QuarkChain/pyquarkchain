@@ -359,6 +359,13 @@ class MasterConnection(ClusterConnection):
         for shard, peer_shard_conn in shard_to_conn.items():
             if peer_shard_conn.is_active():
                 shard.add_peer(peer_shard_conn)
+            else:
+                Logger.warning(
+                    "cluster peer {} vconn for shard {} closed before becoming "
+                    "active, skipped".format(
+                        req.cluster_peer_id, shard.full_shard_id
+                    )
+                )
 
         return CreateClusterPeerConnectionResponse(error_code=0)
 

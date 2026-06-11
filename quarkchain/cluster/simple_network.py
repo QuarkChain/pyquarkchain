@@ -131,6 +131,16 @@ class Peer(P2PConnection):
         self._loop_task = asyncio.create_task(self.active_and_loop_forever())
         await self.wait_until_active()
 
+        # wait_until_active() also returns when the connection closed before ever
+        # becoming active (active_event is set in the finally block of
+        # active_and_loop_forever). Adding a CLOSED peer to the pools would leak it:
+        # close() only removes ACTIVE peers, so broadcasts/get_peer_list would keep
+        # using it forever. close_dead_peer() removes it from the pools (if present)
+        # and tears down the virtual shard connections created above.
+        if not self.is_active():
+            self.close_dead_peer()
+            return "peer {} closed before becoming active".format(self.id.hex())
+
         # Only make the peer connection avaialbe after exchanging HELLO and creating virtual shard connections
         self.network.active_peer_pool[self.id] = self
         self.network.cluster_peer_pool[self.cluster_peer_id] = self
