@@ -1,7 +1,7 @@
-import asyncio
 import json
 import unittest
 from contextlib import asynccontextmanager
+import aiohttp
 import rlp
 import websockets
 
@@ -10,6 +10,7 @@ from quarkchain.cluster.jsonrpc import (
     EMPTY_TX_ID,
     JSONRPCHttpServer,
     JSONRPCWebsocketServer,
+    RpcMethods,
     quantity_encoder,
     data_encoder,
 )
@@ -1624,10 +1625,6 @@ async def get_websocket(port=38590):
 
 
 class TestJSONRPCWebsocket(unittest.IsolatedAsyncioTestCase):
-    def setUp(self):
-        self.loop = asyncio.get_event_loop()
-        self.loop.set_debug(False)
-
     async def test_new_heads(self):
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
@@ -2216,3 +2213,149 @@ class TestJSONRPCWebsocket(unittest.IsolatedAsyncioTestCase):
             await websocket.send(json.dumps(unsubscribe))
             response = json.loads(await websocket.recv())
             self.assertTrue(response["error"])
+
+    async def test_malformed_json_keeps_connection_alive(self):
+        # Malformed JSON must get a -32700 Parse error reply WITHOUT killing the
+        # connection (which would silently drop every subscription on it). After
+        # the error, a valid request on the same socket must still succeed.
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+
+        async with ClusterContext(
+            1, acc1, small_coinbase=True
+        ) as clusters, jrpc_websocket_server_context(
+            clusters[0].slave_list[0], port=38601
+        ):
+            websocket = await get_websocket(port=38601)
+
+            # send invalid JSON -> expect a -32700 reply, not a closed socket
+            await websocket.send("{not valid json")
+            response = json.loads(await websocket.recv())
+            self.assertEqual(response["error"]["code"], -32700)
+            self.assertEqual(response["error"]["message"], "Parse error")
+            self.assertIsNone(response["id"])
+
+            # connection is still alive: a valid subscribe on the same socket works
+            request = {
+                "jsonrpc": "2.0",
+                "method": "subscribe",
+                "params": ["newHeads", "0x00000002"],
+                "id": 7,
+            }
+            await websocket.send(json.dumps(request))
+            response = json.loads(await websocket.recv())
+            self.assertEqual(response["id"], 7)
+            self.assertEqual(len(response["result"]), 34)
+
+
+# Reuse the standard JSON-RPC port (38391). unittest runs sequentially and each
+# fixture binds/releases inside its own ``async with``, the same way
+# jrpc_http_server_context and jrpc_websocket_server_context already share 38391.
+PROTOCOL_SERVER_URL = "http://localhost:38391/"
+
+
+async def _protocol_echo(self, value):
+    """Master-free dummy handler so protocol tests need no cluster/MasterServer."""
+    return value
+
+
+@asynccontextmanager
+async def jrpc_protocol_server_context():
+    """Start a standalone JSON-RPC HTTP server with no MasterServer.
+
+    The protocol-compliance cases below either fail before reaching a handler
+    (parse / dispatch level) or use the master-free ``echo`` method, so
+    ``master=None`` is safe and we avoid spinning up a full ClusterContext.
+    """
+    env = DEFAULT_ENV.copy()
+    env.cluster_config = ClusterConfig()
+    env.cluster_config.JSON_RPC_PORT = 38391
+    env.cluster_config.JSON_RPC_HOST = "127.0.0.1"
+
+    methods = RpcMethods()
+    methods.add(_protocol_echo, name="echo")
+
+    server = JSONRPCHttpServer(env, None, 38391, "127.0.0.1", methods)
+    await server.start()
+    try:
+        yield server
+    finally:
+        await server.shutdown()
+
+
+async def post_raw(body):
+    """POST an arbitrary (possibly malformed) request body; return (status, text)."""
+    async with aiohttp.ClientSession() as session:
+        async with session.post(
+            PROTOCOL_SERVER_URL,
+            data=body,
+            headers={"Content-Type": "application/json"},
+        ) as resp:
+            return resp.status, await resp.text()
+
+
+class TestJSONRPCProtocol(unittest.IsolatedAsyncioTestCase):
+    """Protocol-level compliance for the custom JSON-RPC server.
+
+    Replaces jsonrpcserver 3.5.4. Guards the regressions documented in the
+    P2-6 review:
+      - malformed JSON must return -32700 Parse error (not -32600)
+      - a JSON array (batch) must be rejected cleanly, NOT crash with HTTP 500
+        (batch is intentionally unsupported)
+      - a notification (no "id") that errors must produce no response body
+      - error responses are returned with HTTP 200
+    """
+
+    async def test_malformed_json_returns_parse_error(self):
+        async with jrpc_protocol_server_context():
+            status, text = await post_raw("{not valid json")
+        self.assertEqual(status, 200)
+        resp = json.loads(text)
+        self.assertEqual(resp["error"]["code"], -32700)
+        self.assertEqual(resp["error"]["message"], "Parse error")
+        self.assertIsNone(resp["id"])
+
+    async def test_batch_array_rejected_without_crash(self):
+        # Batch is intentionally unsupported. A JSON array must be rejected with
+        # a clean -32600 Invalid Request, never an unhandled AttributeError/HTTP 500.
+        batch = json.dumps(
+            [
+                {"jsonrpc": "2.0", "method": "echo", "params": ["0x1"], "id": 1},
+                {"jsonrpc": "2.0", "method": "echo", "params": ["0x2"], "id": 2},
+            ]
+        )
+        async with jrpc_protocol_server_context():
+            status, text = await post_raw(batch)
+        self.assertEqual(status, 200)
+        resp = json.loads(text)
+        self.assertEqual(resp["error"]["code"], -32600)
+
+    async def test_notification_error_no_response(self):
+        # No "id" => notification. Even on error, the server must return no body.
+        notif = json.dumps(
+            {"jsonrpc": "2.0", "method": "noSuchMethod", "params": []}
+        )
+        async with jrpc_protocol_server_context():
+            status, text = await post_raw(notif)
+        self.assertEqual(status, 200)
+        self.assertEqual(text, "")
+
+    async def test_error_response_uses_http_200(self):
+        req = json.dumps({"jsonrpc": "2.0", "method": "noSuchMethod", "id": 7})
+        async with jrpc_protocol_server_context():
+            status, text = await post_raw(req)
+        self.assertEqual(status, 200)
+        resp = json.loads(text)
+        self.assertEqual(resp["error"]["code"], -32601)  # Method not found
+        self.assertEqual(resp["id"], 7)
+
+    async def test_valid_request_success(self):
+        req = json.dumps(
+            {"jsonrpc": "2.0", "method": "echo", "params": ["0x5"], "id": 1}
+        )
+        async with jrpc_protocol_server_context():
+            status, text = await post_raw(req)
+        self.assertEqual(status, 200)
+        resp = json.loads(text)
+        self.assertEqual(resp["result"], "0x5")
+        self.assertEqual(resp["id"], 1)

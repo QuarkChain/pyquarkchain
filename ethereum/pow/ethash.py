@@ -117,14 +117,14 @@ def set_ethash_lib(lib_name: str) -> None:
         _mkcache_impl         = mkcache_pyethash
         _hashimoto_light_impl = hashimoto_light_pyethash
         ETHASH_LIB            = "pyethash"
-        _get_pyethash_cache.cache_clear()
+        _get_cache.cache_clear()           # free the now-inactive python cache
     elif lib_name == "python":
         _pyethash_mod         = None
         _pyethash_fn          = None
         _mkcache_impl         = mkcache_python
         _hashimoto_light_impl = hashimoto_light_python
         ETHASH_LIB            = "python"
-        _get_cache.cache_clear()
+        _get_pyethash_cache.cache_clear()  # free the now-inactive pyethash cache
     else:
         raise ValueError(f"Unknown lib_name={lib_name!r}. Use 'pyethash' or 'python'.")
 

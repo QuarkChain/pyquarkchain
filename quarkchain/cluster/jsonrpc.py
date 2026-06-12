@@ -34,7 +34,7 @@ from cachetools import LRUCache
 import uuid
 from quarkchain.cluster.log_filter import LogFilter
 from quarkchain.cluster.subscription import SUB_LOGS
-from quarkchain.cluster.jsonrpc_server import RpcMethods, InvalidParams
+from quarkchain.cluster.jsonrpc_server import InvalidRequest, RpcMethods, InvalidParams, ServerError
 
 # defaults
 DEFAULT_STARTGAS = 100 * 1000
@@ -520,15 +520,19 @@ class JSONRPCHttpServer:
             self.handlers[rpc_name] = func.__get__(self, self.__class__)
 
     async def __handle(self, request):
-        request = await request.text()
-        Logger.info(request)
+        body = await request.text()
+        Logger.info(body)
 
-        d = dict()
         try:
-            d = json.loads(request)
+            d = json.loads(body)
         except Exception:
-            pass
-        method = d.get("method", "null")
+            return web.json_response({
+                "jsonrpc": "2.0",
+                "error": {"code": -32700, "message": "Parse error"},
+                "id": None,
+            })
+
+        method = d.get("method", "null") if isinstance(d, dict) else "null"
         if method in self.counters:
             self.counters[method] += 1
         else:
@@ -1481,17 +1485,21 @@ class JSONRPCWebsocketServer:
             async for message in websocket:
                 Logger.info(message)
 
-                d = dict()
                 try:
                     d = json.loads(message)
                 except Exception:
-                    raise InvalidParams("Cannot parse message as JSON")
-                method = d.get("method", "null")
+                    await websocket.send(json.dumps({
+                        "jsonrpc": "2.0",
+                        "error": {"code": -32700, "message": "Parse error"},
+                        "id": None,
+                    }))
+                    continue
+                method = d.get("method", "null") if isinstance(d, dict) else "null"
                 if method in self.counters:
                     self.counters[method] += 1
                 else:
                     self.counters[method] = 1
-                msg_id = d.get("id", 0)
+                msg_id = d.get("id", 0) if isinstance(d, dict) else 0
 
                 response = await self.handlers.dispatch(
                     d,

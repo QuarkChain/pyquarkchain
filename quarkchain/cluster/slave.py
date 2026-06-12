@@ -353,9 +353,19 @@ class MasterConnection(ClusterConnection):
         # wait for all the connections to become active before return
         await asyncio.gather(*active_futures)
 
-        # Make peer connection available to shard once they are active
+        # Make peer connection available to shard once they are active.
+        # Skip connections that died before becoming active (active_event is also
+        # set in the finally block of active_and_loop_forever on early close).
         for shard, peer_shard_conn in shard_to_conn.items():
-            shard.add_peer(peer_shard_conn)
+            if peer_shard_conn.is_active():
+                shard.add_peer(peer_shard_conn)
+            else:
+                Logger.warning(
+                    "cluster peer {} vconn for shard {} closed before becoming "
+                    "active, skipped".format(
+                        req.cluster_peer_id, shard.full_shard_id
+                    )
+                )
 
         return CreateClusterPeerConnectionResponse(error_code=0)
 
@@ -905,10 +915,6 @@ class SlaveServer:
         self.artificial_tx_config = None
         self.shards = dict()  # type: Dict[Branch, Shard]
         self.shutdown_future = self.loop.create_future()
-
-        # block hash -> future (that will return when the block is fully propagated in the cluster)
-        # the block that has been added locally but not have been fully propagated will have an entry here
-        self.add_block_futures = dict()
         self.shard_subscription_managers = dict()
 
     def __cover_shard_id(self, full_shard_id):

@@ -84,7 +84,7 @@ def mine(
 ) -> Tuple[Optional[bytes], Optional[bytes]]:
     epoch = block_number // EPOCH_LENGTH
     if is_test:
-        cache_size, full_size = 1024, 32 * 1024 
+        cache_size, full_size = 1024, 32 * 1024
     else:
         cache_size, full_size = (
             get_cache_size(epoch),

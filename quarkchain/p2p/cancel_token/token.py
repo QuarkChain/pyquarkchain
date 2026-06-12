@@ -7,7 +7,7 @@ _R = TypeVar("_R")
 
 
 class CancelToken:
-    def __init__(self, name: str, loop: asyncio.AbstractEventLoop = None) -> None:
+    def __init__(self, name: str) -> None:
         self.name = name
         self._chain = []  # : List['CancelToken']
         self._triggered = asyncio.Event()
