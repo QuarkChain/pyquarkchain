@@ -10,9 +10,6 @@ __pycache__/
 *.so
 *.pyd
 
-# Cython generated
-ethereum/pow/ethash_cy.c
-
 # qkchash binaries
 qkchash/qkchash
 qkchash/qkchash_llrb
