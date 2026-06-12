@@ -170,6 +170,38 @@ class TestMiner(unittest.TestCase):
         self.assertEqual(len(self.added_blocks), 4)
         self.assertIsNone(miner.process)
 
+    def test_disable_during_block_creation_prevents_rogue_subprocess(self):
+        # Race: an in-flight mine_new_block task is suspended at
+        # `await create_block_async_func`.  While suspended, disable() runs and
+        # the old subprocess is reaped (self.process reset to None).  When the
+        # task resumes it must re-check self.enabled and bail out; otherwise it
+        # would spawn a fresh subprocess that disable() has already finished
+        # tearing down and can no longer stop, leaving an unstoppable miner.
+        miner = self.miner_gen(ConsensusType.POW_DOUBLESHA256, None, None)
+
+        async def create(coinbase_addr=None, retry=True):
+            # mimic disable() + subprocess reaping landing mid-await
+            miner.process = object()  # a subprocess was running
+            miner.disable()  # signals the subprocess, flips enabled to False
+            miner.process = None  # handle_mined_block reaps the subprocess
+            return RootBlock(
+                RootBlockHeader(create_time=int(time.time())),
+                tracking_data="{}".encode("utf-8"),
+            )
+
+        miner.create_block_async_func = create
+
+        async def go():
+            task = miner._mine_new_block_async()
+            if task is not None:
+                await task
+
+        asyncio.run(go())
+        # bailed out after the await: no rogue subprocess was spawned
+        self.assertIsNone(miner.process)
+        self.assertFalse(miner.enabled)
+        self.assertEqual(len(self.added_blocks), 0)
+
     def test_simulate_mine_handle_block_exception(self):
         i = 0
 

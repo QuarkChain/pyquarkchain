@@ -252,6 +252,12 @@ class Miner:
             If a mining process has already been started, update the process to mine the new block.
             """
             block = await self.create_block_async_func(Address.create_empty_account())
+            # disable() may have run while we were awaiting block creation.  If so,
+            # bail out: with self.process now reset to None, falling through would
+            # spawn a fresh subprocess that disable() has already finished tearing
+            # down and can no longer stop, leaving an unstoppable rogue miner.
+            if not self.enabled:
+                return
             if not block:
                 self.input_q.put((None, {}))
                 return
