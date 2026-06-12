@@ -188,6 +188,9 @@ class Miner:
         self.current_works = LRUCache(128)
         self.root_signer_private_key = root_signer_private_key
         self._mining_task = None
+        # anchors the short-lived "prepare next block" tasks spawned from
+        # within the mining loop so they aren't GC'd mid-execution
+        self._pending_block_tasks = set()
 
     def start(self):
         self.enabled = True
@@ -227,7 +230,10 @@ class Miner:
                         self.process = None
                     return  # empty result means ending
                 # start mining before processing and propagating mined block
-                self._mine_new_block_async()
+                next_task = self._mine_new_block_async()
+                if next_task:
+                    self._pending_block_tasks.add(next_task)
+                    next_task.add_done_callback(self._pending_block_tasks.discard)
                 block = self.work_map[res.header_hash]
                 block.header.nonce = res.nonce
                 block.header.mixhash = res.mixhash

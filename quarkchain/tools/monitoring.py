@@ -45,7 +45,10 @@ async def fetch_peers_async(node):
     except Exception:
         print("Failed to get peers from {}".format(json_rpc_url))
         peers = {"peers": []}
-    await server.close()
+    finally:
+        # finally (not a bare call) so the client is closed even on
+        # CancelledError, which is a BaseException and skips except Exception
+        await server.close()
     return [
         (
             str(ipaddress.ip_address(int(p["ip"], 16))),
@@ -163,10 +166,14 @@ async def async_watch(clusters):
         (idx, AsyncJsonRpcClient("http://{}".format(cluster)))
         for idx, cluster in enumerate(clusters)
     ]
-    while True:
-        await asyncio.gather(*[async_stats(idx, server) for (idx, server) in servers])
-        print("... as of {}".format(datetime.now()))
-        await asyncio.sleep(CONST_INTERVAL)
+    try:
+        while True:
+            await asyncio.gather(*[async_stats(idx, server) for (idx, server) in servers])
+            print("... as of {}".format(datetime.now()))
+            await asyncio.sleep(CONST_INTERVAL)
+    finally:
+        for _, server in servers:
+            await server.close()
 
 
 def watch_nodes_stats(ip, p2p_port, jrpc_port, ip_lookup={}):
