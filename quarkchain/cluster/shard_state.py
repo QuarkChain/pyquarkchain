@@ -275,6 +275,18 @@ class ShardState:
             1 - self.env.quark_chain_config.reward_tax_rate
         )  # type: Fraction
         self.subscription_manager = SubscriptionManager()
+        # strong refs to fire-and-forget notify/monitoring tasks: CPython's
+        # event loop only weakly references tasks, so without this they could
+        # be GC'd mid-execution and silently drop subscription notifications
+        self._background_tasks = set()
+
+    def _spawn_background(self, coro):
+        """Schedule a fire-and-forget coroutine while keeping a strong
+        reference until it completes (see self._background_tasks)."""
+        task = asyncio.create_task(coro)
+        self._background_tasks.add(task)
+        task.add_done_callback(self._background_tasks.discard)
+        return task
 
     def init_from_root_block(self, root_block):
         """Master will send its root chain tip when it connects to slaves.
@@ -579,7 +591,7 @@ class ShardState:
                 return False
 
             self.tx_queue.add_transaction(tx)
-            asyncio.create_task(
+            self._spawn_background(
                 self.subscription_manager.notify_new_pending_tx(
                     [tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")]
                 )
@@ -860,18 +872,20 @@ class ShardState:
             if add_tx_back_to_queue:
                 self.__add_transactions_from_block(block)
         if len(old_chain) > 0:
-            asyncio.create_task(self.subscription_manager.notify_log(old_chain, True))
+            self._spawn_background(
+                self.subscription_manager.notify_log(old_chain, True)
+            )
         for block in new_chain:
             self.db.put_transaction_index_from_block(block)
             self.db.put_minor_block_index(block)
             self.__remove_transactions_from_block(block)
         # new_chain has at least one block, starting from minor_block with block height descending
-        asyncio.create_task(
+        self._spawn_background(
             self.subscription_manager.notify_new_heads(
                 sorted(new_chain, key=lambda x: x.header.height)
             )
         )
-        asyncio.create_task(self.subscription_manager.notify_log(new_chain))
+        self._spawn_background(self.subscription_manager.notify_log(new_chain))
 
     # will be called for chain reorganization
     def __add_transactions_from_block(self, block):
@@ -883,7 +897,7 @@ class ShardState:
             tx_hashes.append(
                 tx_hash + evm_tx.from_full_shard_key.to_bytes(4, byteorder="big")
             )
-        asyncio.create_task(
+        self._spawn_background(
             self.subscription_manager.notify_new_pending_tx(tx_hashes)
         )
 
@@ -1050,7 +1064,7 @@ class ShardState:
                 "propagation_latency_ms": start_ms - tracking_data.get("mined", 0),
                 "num_tx": len(block.tx_list),
             }
-            asyncio.create_task(
+            self._spawn_background(
                 self.env.cluster_config.kafka_logger.log_kafka_sample_async(
                     self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
                 )
@@ -1392,7 +1406,7 @@ class ShardState:
             tx.tx_hash + tx.from_address.full_shard_key.to_bytes(4, byteorder="big")
             for tx in tx_list.tx_list
         ]
-        asyncio.create_task(
+        self._spawn_background(
             self.subscription_manager.notify_new_pending_tx(tx_hashes)
         )
 

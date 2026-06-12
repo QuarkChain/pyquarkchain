@@ -85,9 +85,11 @@ class SubscriptionManager:
                 "currentBlock": tip_height,
                 "highestBlock": highest_block,
             }
+        tasks = []
         for sub_id, websocket in self.subscribers[SUB_SYNC].items():
             response = self.response_encoder(sub_id, result)
-            asyncio.create_task(websocket.send(json.dumps(response)))
+            tasks.append(websocket.send(json.dumps(response)))
+        await asyncio.gather(*tasks)
 
     @staticmethod
     def response_encoder(sub_id, result):

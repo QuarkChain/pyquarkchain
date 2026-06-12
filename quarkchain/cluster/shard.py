@@ -394,7 +394,9 @@ class SyncTask:
                 await self.shard.add_block(block)
                 if counter % 100 == 0:
                     sync_data = (block.header.height, block_header_chain[-1])
-                    asyncio.create_task(notify_sync(sync_data))
+                    # anchor on the long-lived shard_state so the notification
+                    # isn't GC'd when this transient SyncTask goes away
+                    self.shard_state._spawn_background(notify_sync(sync_data))
                     counter = 0
                 counter += 1
                 block_header_chain.pop(0)
@@ -470,6 +472,9 @@ class Synchronizer:
         self.notify_sync = notify_sync
         self.header_tip_getter = header_tip_getter
         self.counter = 0
+        # strong refs to fire-and-forget sync notifications so they aren't
+        # GC'd mid-flight (the loop only weakly references tasks)
+        self._notify_tasks = set()
 
     def add_task(self, header, shard_conn):
         self.queue.append((header, shard_conn))
@@ -498,7 +503,9 @@ class Synchronizer:
             if len(self.queue) > 0
             else None
         )
-        asyncio.ensure_future(self.notify_sync(sync_data))
+        task = asyncio.ensure_future(self.notify_sync(sync_data))
+        self._notify_tasks.add(task)
+        task.add_done_callback(self._notify_tasks.discard)
 
 
 class Shard:
