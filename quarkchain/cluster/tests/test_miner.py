@@ -72,6 +72,136 @@ class TestMiner(unittest.TestCase):
             asyncio.run(go())
             self.assertEqual(len(self.added_blocks), 5)
 
+    def test_disable_with_subprocess_signals_via_queue(self):
+        # When a subprocess is running, disable() must signal termination via
+        # the input queue sentinel and must NOT cancel the handler task.
+        # Cancelling would leave the subprocess's terminating None unconsumed in
+        # output_q, so the next start() would read a stale None and exit.
+        miner = self.miner_gen(ConsensusType.POW_DOUBLESHA256, None, None)
+
+        async def go():
+            async def handler():
+                await asyncio.sleep(60)
+
+            miner.enabled = True
+            miner.process = object()  # pretend a subprocess is running
+            miner._mining_task = asyncio.ensure_future(handler())
+            task = miner._mining_task
+            await asyncio.sleep(0)  # let the task start
+
+            miner.disable()
+
+            # sentinel queued for the subprocess to read and terminate on
+            self.assertEqual(miner.input_q.get(timeout=5), (None, {}))
+            # handler task must NOT be cancelled (it drains the output_q None)
+            self.assertFalse(task.cancelled())
+            self.assertFalse(task.done())
+            self.assertFalse(miner.enabled)
+            self.assertIsNone(miner._mining_task)
+
+            task.cancel()  # cleanup
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+
+        asyncio.run(go())
+
+    def test_disable_without_subprocess_cancels_task(self):
+        # With no subprocess yet (e.g. disable() during block creation), there
+        # is nothing to signal, so the handler task is cancelled directly.
+        miner = self.miner_gen(ConsensusType.POW_DOUBLESHA256, None, None)
+
+        async def go():
+            async def handler():
+                await asyncio.sleep(60)
+
+            miner.enabled = True
+            miner.process = None  # no subprocess spawned yet
+            miner._mining_task = asyncio.ensure_future(handler())
+            task = miner._mining_task
+            await asyncio.sleep(0)
+
+            miner.disable()
+
+            self.assertFalse(miner.enabled)
+            self.assertIsNone(miner._mining_task)
+            with self.assertRaises(asyncio.CancelledError):
+                await task
+            self.assertTrue(task.cancelled())
+
+        asyncio.run(go())
+
+    def test_restart_after_termination_resumes_mining(self):
+        # Regression: after a mining session ends (subprocess signaled to stop),
+        # self.process must be reset so the next start() spawns a fresh
+        # subprocess.  Without the reset, mine_new_block posts work to the dead
+        # subprocess and mining silently never resumes.
+        async def create(coinbase_addr=None, retry=True):
+            # session 1 stops at 2 blocks, session 2 at 4
+            if len(self.added_blocks) >= self.stop_at:
+                return None
+            return RootBlock(
+                RootBlockHeader(create_time=int(time.time())),
+                tracking_data="{}".encode("utf-8"),
+            )
+
+        async def add(block):
+            self.added_blocks.append(block)
+
+        miner = self.miner_gen(ConsensusType.POW_DOUBLESHA256, create, add)
+
+        async def session():
+            task = miner._mine_new_block_async()
+            if task is not None:
+                await task
+
+        # session 1
+        self.stop_at = 2
+        asyncio.run(session())
+        self.assertEqual(len(self.added_blocks), 2)
+        # process handle cleared after the subprocess terminated
+        self.assertIsNone(miner.process)
+
+        # session 2 (restart): mining must actually resume and add more blocks
+        self.stop_at = 4
+        miner.enabled = True
+        asyncio.run(session())
+        self.assertEqual(len(self.added_blocks), 4)
+        self.assertIsNone(miner.process)
+
+    def test_disable_during_block_creation_prevents_rogue_subprocess(self):
+        # Race: an in-flight mine_new_block task is suspended at
+        # `await create_block_async_func`.  While suspended, disable() runs and
+        # the old subprocess is reaped (self.process reset to None).  When the
+        # task resumes it must re-check self.enabled and bail out; otherwise it
+        # would spawn a fresh subprocess that disable() has already finished
+        # tearing down and can no longer stop, leaving an unstoppable miner.
+        miner = self.miner_gen(ConsensusType.POW_DOUBLESHA256, None, None)
+
+        async def create(coinbase_addr=None, retry=True):
+            # mimic disable() + subprocess reaping landing mid-await
+            miner.process = object()  # a subprocess was running
+            miner.disable()  # signals the subprocess, flips enabled to False
+            miner.process = None  # handle_mined_block reaps the subprocess
+            return RootBlock(
+                RootBlockHeader(create_time=int(time.time())),
+                tracking_data="{}".encode("utf-8"),
+            )
+
+        miner.create_block_async_func = create
+
+        async def go():
+            task = miner._mine_new_block_async()
+            if task is not None:
+                await task
+
+        asyncio.run(go())
+        # bailed out after the await: no rogue subprocess was spawned
+        self.assertIsNone(miner.process)
+        self.assertFalse(miner.enabled)
+        self.assertEqual(len(self.added_blocks), 0)
+
     def test_simulate_mine_handle_block_exception(self):
         i = 0
 
