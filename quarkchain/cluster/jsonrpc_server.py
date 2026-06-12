@@ -91,12 +91,17 @@ class RpcMethods:
 
     async def dispatch(self, request_json: Dict[str, Any], context=None) -> Optional[Dict[str, Any]]:
         req_id = None
+        is_notification = False
+        method = ""
 
         try:
+            if isinstance(request_json, list):
+                raise InvalidRequest("Batch requests not supported")
             if not isinstance(request_json, dict):
                 raise InvalidRequest("Request must be object")
 
             req_id = request_json.get("id")
+            is_notification = "id" not in request_json
 
             if request_json.get("jsonrpc") != "2.0":
                 raise InvalidRequest("Invalid JSON-RPC version")
@@ -104,8 +109,6 @@ class RpcMethods:
             method = request_json.get("method")
             if not isinstance(method, str):
                 raise InvalidRequest("Method must be string")
-
-            is_notification = "id" not in request_json
 
             if method not in self._methods:
                 raise MethodNotFound()
@@ -139,6 +142,8 @@ class RpcMethods:
             }
 
         except JsonRpcError as e:
+            if is_notification:
+                return None
             return {
                 "jsonrpc": "2.0",
                 "error": e.to_dict(),
@@ -146,6 +151,8 @@ class RpcMethods:
             }
         except Exception:
             logger.exception("Internal JSON-RPC error for method %s", method)
+            if is_notification:
+                return None
             return {
                 "jsonrpc": "2.0",
                 "error": {
