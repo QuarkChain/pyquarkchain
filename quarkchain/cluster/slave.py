@@ -915,10 +915,6 @@ class SlaveServer:
         self.artificial_tx_config = None
         self.shards = dict()  # type: Dict[Branch, Shard]
         self.shutdown_future = self.loop.create_future()
-
-        # block hash -> future (that will return when the block is fully propagated in the cluster)
-        # the block that has been added locally but not have been fully propagated will have an entry here
-        self.add_block_futures = dict()
         self.shard_subscription_managers = dict()
 
     def __cover_shard_id(self, full_shard_id):
