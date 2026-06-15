@@ -1,39 +1,25 @@
 #! /usr/bin/env pypy3
 
 import argparse
-import logging
 import time
 from datetime import datetime
-import jsonrpcclient
-import psutil
-import numpy
-from decimal import Decimal
+from quarkchain.jsonrpc_client import JsonRpcClient
 
 TIMEOUT=10
-
-# disable jsonrpcclient verbose logging
-logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
-
 
 def now():
     return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-def checkHeight(private_client, public_client, timeout=TIMEOUT):
-    result_private = private_client.send(
-        jsonrpcclient.Request("getRootBlockByHeight"),
-        timeout=timeout,)
-    result_public = public_client.send(
-        jsonrpcclient.Request("getRootBlockByHeight"),
-        timeout=timeout,)
+def checkHeight(private_client: JsonRpcClient, public_client: JsonRpcClient):
+    result_private = private_client.call("getRootBlockByHeight")
+    result_public = public_client.call("getRootBlockByHeight")
     return {
         "height": int(result_private["height"], 16),
         "currentHeight": int(result_public["height"], 16),
     }
 
 
-
-def query_height(private_client, public_client, args):
+def query_height(private_client: JsonRpcClient, public_client: JsonRpcClient, args):
     format = "{time:20} {syncing:>15}{height:>30}{currentHeight:>30}"
     print(
         format.format(
@@ -75,10 +61,10 @@ def main():
     args = parser.parse_args()
 
     private_endpoint = "http://{}:38391".format(args.ip)
-    private_client = jsonrpcclient.HTTPClient(private_endpoint)
+    private_client = JsonRpcClient(private_endpoint, TIMEOUT)
 
     public_endpoint = "http://{}:38391".format(args.bootstrapip)
-    public_client = jsonrpcclient.HTTPClient(public_endpoint)
+    public_client = JsonRpcClient(public_endpoint, TIMEOUT)
 
 
 

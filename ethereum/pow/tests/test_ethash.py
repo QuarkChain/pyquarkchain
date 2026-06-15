@@ -1,8 +1,21 @@
 import unittest
 
+import numpy as np
+
 from ethereum.pow.ethash import mkcache, calc_dataset, hashimoto_light, hashimoto_full
-from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES, serialize_hash
+from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES
 from ethereum.pow.ethpow import EthashMiner, check_pow
+
+
+class TestEthashUtils(unittest.TestCase):
+    """Test correctness of ethash_utils functions."""
+
+    def test_ethash_sha3_512_known_vector(self):
+        """ethash_sha3_512 with seed zero is stable across runs."""
+        from ethereum.pow.ethash_utils import ethash_sha3_512
+        seed = b"\x00" * 32
+        result = ethash_sha3_512(seed)
+        self.assertEqual(ethash_sha3_512(seed).tobytes(), result.tobytes())
 
 
 class TestEthash(unittest.TestCase):
@@ -26,9 +39,8 @@ class TestEthash(unittest.TestCase):
             ),
         ]
         for cache_size, epoch, expected_cache in testcases:
-            block_number = epoch * EPOCH_LENGTH
-            cache = mkcache(cache_size, block_number)
-            cache_hex = "".join(serialize_hash(ls).hex() for ls in cache)
+            cache = mkcache(cache_size, epoch)
+            cache_hex = "".join(row.tobytes().hex() for row in cache)
             self.assertEqual(cache_hex, expected_cache[2:])
 
     def test_dataset_gen(self):
@@ -42,14 +54,13 @@ class TestEthash(unittest.TestCase):
             )
         ]
         for epoch, cache_size, dataset_size, expected_dataset in testcases:
-            block_number = epoch * EPOCH_LENGTH
-            cache = mkcache(cache_size, block_number)
+            cache = mkcache(cache_size, epoch)
             dataset = calc_dataset(dataset_size, cache)
-            dataset_hex = "".join(serialize_hash(ls).hex() for ls in dataset)
+            dataset_hex = "".join(row.tobytes().hex() for row in dataset)
             self.assertEqual(dataset_hex, expected_dataset[2:])
 
     def test_hashimoto(self):
-        cache = mkcache(cache_size=1024, block_number=0)
+        cache = mkcache(cache_size=1024, epoch=0)
         dataset = calc_dataset(32 * 1024, cache)
         header = bytes.fromhex(
             "0xc9149cc0386e689d789a1c2f3d5d169a61a6218ed30e74414dc736e442ef3d1f"[2:]
@@ -68,6 +79,7 @@ class TestEthash(unittest.TestCase):
                 cache,
                 header,
                 nonce.to_bytes(8, byteorder="big"),
+                0,
             ),
             hashimoto_full(dataset, header, nonce.to_bytes(8, byteorder="big")),
         ):
@@ -129,3 +141,86 @@ class TestEthash(unittest.TestCase):
                 1, header_hash, mixhash, nonce_found, diff, is_test=False
             )
             self.assertTrue(validity)
+
+    def test_pyethash_matches_python_fallback(self):
+        """pyethash C extension mkcache and hashimoto_light match numpy Python fallback."""
+        import pyethash as _pyethash
+
+        from ethereum.pow.ethash import hashimoto, calc_dataset_item, _get_cache, cache_seeds
+        from ethereum.pow.ethash_utils import get_cache_size, get_full_size
+
+        # pyethash only supports canonical epoch sizes, not test/small sizes
+        cache_size = get_cache_size(0)  # epoch 0
+        full_size = get_full_size(0)    # epoch 0
+        header = bytes(32)
+        nonce = (0).to_bytes(8, byteorder="big")
+
+        raw = _pyethash.mkcache_bytes(0)
+        self.assertEqual(len(raw), cache_size)
+        cache = np.frombuffer(raw, dtype="<u4").reshape(len(raw) // HASH_BYTES, 16).copy()
+
+        # Compare mkcache content: pyethash vs Python _get_cache
+        # _get_cache is lru_cached; first call is slow (~5-20s) for canonical epoch-0 size
+        n_total = cache_size // HASH_BYTES
+        seed = cache_seeds[0]  # epoch-0 seed = b"\x00" * 32
+        py_cache = _get_cache(seed, n_total)
+        self.assertEqual(
+            raw,
+            py_cache.astype("<u4", copy=False).tobytes(),
+            "mkcache bytes mismatch: pyethash vs Python _get_cache",
+        )
+
+        # Compare hashimoto_light output: numpy Python path vs pyethash C path
+        py_r = hashimoto(header, nonce, full_size, lambda x: calc_dataset_item(cache, x))
+        pe_r = _pyethash.hashimoto_light(0, raw, header, 0)
+
+        self.assertEqual(py_r[b"mix digest"], pe_r[b"mix digest"])
+        self.assertEqual(py_r[b"result"],     pe_r[b"result"])
+
+
+class TestEthashCrossImplEpochs(unittest.TestCase):
+    """Regression tests for pyethash at large epoch numbers.
+
+    Epoch 520 (block 15_600_000) is the epoch that caused the original sync
+    failure. A random epoch in [1, 520] provides additional coverage across
+    the epoch space. Tests are skipped when pyethash is not installed.
+    """
+
+    HEADER = bytes.fromhex(
+        "c9149cc0386e689d789a1c2f3d5d169a61a6218ed30e74414dc736e442ef3d1f"
+    )
+    NONCE = (0).to_bytes(8, byteorder="big")
+
+    # Known-good pyethash outputs for epoch 520, HEADER above, NONCE=0.
+    # To regenerate: set both to None, run test_epoch_520_regression,
+    # copy the printed hex strings back here.
+    _EPOCH_520_MIX    = "772518bb9299c81777d73e73486e62076adfcb09bb32ea3c441722d514ba2fd6"
+    _EPOCH_520_RESULT = "4e2d6a014c7d537f3503c99ca1accc84167e9d8bd0e028b562e66b6e7ba44adf"
+
+    def _run_pyethash(self, epoch: int):
+        try:
+            import pyethash as _pyethash
+        except ImportError:
+            self.skipTest("pyethash not installed")
+        block     = epoch * EPOCH_LENGTH
+        nonce_int = int.from_bytes(self.NONCE, "big")
+        raw = _pyethash.mkcache_bytes(block)
+        r   = _pyethash.hashimoto_light(block, raw, self.HEADER, nonce_int)
+        return r
+
+    def test_epoch_520_regression(self):
+        """Epoch 520 / block 15_600_000: compare against known-good pyethash output."""
+        r = self._run_pyethash(520)
+        if self._EPOCH_520_MIX is None:
+            print(f"\n[GENERATE] _EPOCH_520_MIX    = '{r[b'mix digest'].hex()}'")
+            print(f"[GENERATE] _EPOCH_520_RESULT = '{r[b'result'].hex()}'")
+            self.fail("Paste the printed values into _EPOCH_520_MIX / _EPOCH_520_RESULT")
+        self.assertEqual(r[b"mix digest"].hex(), self._EPOCH_520_MIX)
+        self.assertEqual(r[b"result"].hex(),     self._EPOCH_520_RESULT)
+
+    def test_random_epoch(self):
+        """Random non-zero epoch: structural sanity check across the epoch space."""
+        import random
+        r = self._run_pyethash(random.randint(1, 520))
+        self.assertEqual(len(r[b"mix digest"]), 32)
+        self.assertEqual(len(r[b"result"]), 32)

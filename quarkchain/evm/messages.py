@@ -176,12 +176,11 @@ def validate_transaction(state, tx):
                     chain_config.DEFAULT_CHAIN_TOKEN
                 )
             )
-        assert (tx.network_id == chain_config.ETH_CHAIN_ID, "Invalid network_id.")
+        assert tx.network_id == chain_config.ETH_CHAIN_ID, "Invalid network_id."
         assert (
             tx.eth_chain_id - state.qkc_config.BASE_ETH_CHAIN_ID - 1
-            == tx.from_chain_id,
-            "Invalid Eth_Chain_Id.",
-        )
+            == tx.from_chain_id
+        ), "Invalid Eth_Chain_Id."
 
     # (1a) startgas, gasprice, gas token id, transfer token id must be <= UINT128_MAX
     if (

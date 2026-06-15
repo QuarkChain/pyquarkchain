@@ -15,11 +15,6 @@ except Exception as e:
     print("======")
     raise e
 
-import jsonrpcclient
-
-# Disable jsonrpcclient verbose logging.
-logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 TIMEOUT = 10
 fetcher = None
@@ -54,9 +49,7 @@ def get_highest() -> int:
     global fetcher
     assert isinstance(fetcher, Fetcher)
 
-    res = fetcher.cli.send(
-        jsonrpcclient.Request("getRootBlockByHeight"), timeout=TIMEOUT
-    )
+    res = fetcher.cli.call("getRootBlockByHeight")
     if not res:
         raise RuntimeError("Failed to get latest block height")
     return int(res["height"], 16)

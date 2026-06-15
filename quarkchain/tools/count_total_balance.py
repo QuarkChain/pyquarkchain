@@ -2,37 +2,29 @@ import argparse
 import functools
 import logging
 from typing import List, Tuple, Dict, Any
-
-import jsonrpcclient
+from quarkchain.jsonrpc_client import JsonRpcClient
 
 logging.root.setLevel(logging.INFO)
 log_format = "%(asctime)s: %(message)s"
 logging.basicConfig(format=log_format, datefmt="%Y-%m-%d %H:%M:%S")
-
-# disable jsonrpcclient verbose logging
-logging.getLogger("jsonrpcclient.client.request").setLevel(logging.WARNING)
-logging.getLogger("jsonrpcclient.client.response").setLevel(logging.WARNING)
 
 TIMEOUT = 10
 TOTAL_SHARD = 8
 
 
 @functools.lru_cache(maxsize=5)
-def get_jsonrpc_cli(jrpc_url):
-    return jsonrpcclient.HTTPClient(jrpc_url)
+def get_jsonrpc_cli(jrpc_url, timeout=10):
+    return JsonRpcClient(jrpc_url, timeout)
 
 
 class Fetcher(object):
     def __init__(self, host: str, timeout: int):
-        self.cli = get_jsonrpc_cli(host)
+        self.cli = get_jsonrpc_cli(host, timeout)
         self.timeout = timeout
         self.shard_to_latest_id = {}
 
     def _get_root_block(self, root_block_height: int) -> Dict[str, Any]:
-        res = self.cli.send(
-            jsonrpcclient.Request("getRootBlockByHeight", hex(root_block_height)),
-            timeout=self.timeout,
-        )
+        res = self.cli.call("getRootBlockByHeight", hex(root_block_height))
         if not res:
             raise RuntimeError(
                 "Failed to query root block at height" % root_block_height
@@ -62,12 +54,7 @@ class Fetcher(object):
     def count_total_balance(
         self, block_id: str, root_block_id: str, token_id: int, start: str
     ) -> Tuple[int, str]:
-        res = self.cli.send(
-            jsonrpcclient.Request(
-                "getTotalBalance", block_id, root_block_id, hex(token_id), start
-            ),
-            timeout=self.timeout,
-        )
+        res = self.cli.call("getTotalBalance", block_id, root_block_id, hex(token_id), start)
         if not res:
             raise RuntimeError("Failed to count total balance")
         return int(res["totalBalance"], 16), res["next"]

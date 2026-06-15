@@ -1,4 +1,5 @@
 import unittest
+import asyncio
 from copy import copy
 
 from quarkchain.cluster.log_filter import LogFilter
@@ -14,9 +15,9 @@ from quarkchain.utils import sha3_256
 import random
 
 
-class TestFilter(unittest.TestCase):
-    def setUp(self):
-        super().setUp()
+class TestFilter(unittest.IsolatedAsyncioTestCase):
+    async def asyncSetUp(self):
+        await super().asyncSetUp()
         id1 = Identity.create_random_identity()
         acc1 = Address.create_from_identity(id1, full_shard_key=0)
 
@@ -88,14 +89,14 @@ class TestFilter(unittest.TestCase):
 
         self.filter_gen_with_criteria = filter_gen_with_criteria
 
-    def test_bloom_bits_in_cstor(self):
+    async def test_bloom_bits_in_cstor(self):
         criteria = [[tp] for tp in self.log.topics]
         f = self.filter_gen_with_criteria(criteria)
         # use sha3(b'Hi(address)') to test bits
         expected_indexes = bits_in_number(bloom(sha3_256(b"Hi(address)")))
         self.assertEqual(expected_indexes, bits_in_number(f.bloom_bits[0][0]))
 
-    def test_get_block_candidates_hit(self):
+    async def test_get_block_candidates_hit(self):
         hit_criteria = [
             [[tp] for tp in self.log.topics],  # exact match
             [[self.log.topics[0]], []],  # one wild card
@@ -113,7 +114,7 @@ class TestFilter(unittest.TestCase):
             self.assertEqual(len(blocks), 1)
             self.assertEqual(blocks[0].header.height, self.start_height)
 
-    def test_get_block_candidates_miss(self):
+    async def test_get_block_candidates_miss(self):
         miss_criteria = [
             [[self.log.topics[0]], [bytes.fromhex("1234")]]  # one miss match
         ]
@@ -122,7 +123,7 @@ class TestFilter(unittest.TestCase):
             blocks = f._get_block_candidates()
             self.assertEqual(len(blocks), 0)
 
-    def test_log_topics_match(self):
+    async def test_log_topics_match(self):
         criteria = [[tp] for tp in self.log.topics]
         f = self.filter_gen_with_criteria(criteria)
         log = copy(self.log)
@@ -137,14 +138,14 @@ class TestFilter(unittest.TestCase):
         f = self.filter_gen_with_criteria(criteria)
         self.assertTrue(f._log_topics_match(log))
 
-    def test_get_logs(self):
+    async def test_get_logs(self):
         criteria = [[tp] for tp in self.log.topics]
         addresses = [Address(self.log.recipient, 0)]
         f = self.filter_gen_with_criteria(criteria, addresses)
         logs = f._get_logs([self.hit_block])
         self.assertListEqual([self.log], logs)
 
-    def test_get_block_candidates_height_ascending(self):
+    async def test_get_block_candidates_height_ascending(self):
         criteria = []
         addresses = []
         f = self.filter_gen_with_criteria(criteria, addresses)

@@ -8,28 +8,18 @@ will update BOOT_NODES fields in P2P section and check the working status of boo
 """
 import argparse
 import asyncio
-import logging
-import time
-from datetime import datetime
-import jsonrpcclient
-import psutil
-import numpy
-from decimal import Decimal
-import smtplib
-from quarkchain.cluster.cluster_config import ClusterConfig
-from quarkchain.cluster.master import MasterServer
-from quarkchain.cluster.cluster import Cluster
-import jsonrpcclient
-import logging
-import time
-from datetime import datetime
-import smtplib
 import os
+import smtplib
 import tempfile
+import time
+from datetime import datetime
+from quarkchain.cluster.cluster_config import ClusterConfig
+from quarkchain.cluster.cluster import Cluster
+from quarkchain.jsonrpc_client import JsonRpcClient
 
 TIMEOUT = 10
 PRIVATE_ENDPOINT = "http://{}:38491".format("localhost")
-PRIVATE_CLIENT = jsonrpcclient.HTTPClient(PRIVATE_ENDPOINT)
+PRIVATE_CLIENT = JsonRpcClient(PRIVATE_ENDPOINT, TIMEOUT)
 
 
 def now():
@@ -45,9 +35,7 @@ class HealthCheckCluster(Cluster):
 
 
 def check_routing_table(timeout=TIMEOUT):
-    result = PRIVATE_CLIENT.send(
-        jsonrpcclient.Request("getKadRoutingTable"), timeout=timeout
-    )
+    result = PRIVATE_CLIENT.call("getKadRoutingTable")
     if len(result) == 0:
         print("Bootstrap node can not provide the routing table for a while!")
         subject = "Boostrap Node Alert!"

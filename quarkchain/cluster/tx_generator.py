@@ -21,6 +21,7 @@ class TransactionGenerator:
         self.full_shard_id = shard.full_shard_id
         self.shard = shard
         self.running = False
+        self._gen_task = None
 
         self.accounts = []
         for item in qkc_config.loadtest_accounts:
@@ -35,7 +36,9 @@ class TransactionGenerator:
             return False
 
         self.running = True
-        asyncio.ensure_future(self.__gen(num_tx, x_shard_percent, tx))
+        # keep a strong reference so the long-running generator task isn't
+        # GC'd mid-execution (would leave self.running stuck True)
+        self._gen_task = asyncio.create_task(self.__gen(num_tx, x_shard_percent, tx))
         return True
 
     async def __gen(self, num_tx, x_shard_percent, sample_tx: TypedTransaction):

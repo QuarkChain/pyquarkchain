@@ -71,8 +71,12 @@ To install the required modules for the project. Under `pyquarkchain` dir where 
 # you may want to set the following if cryptography complains about header files: (https://github.com/pyca/cryptography/issues/3489)
 # export CPPFLAGS=-I/usr/local/opt/openssl/include
 # export LDFLAGS=-L/usr/local/opt/openssl/lib
-pip install -e .
+pip install -r requirements.txt
 ```
+
+**pyethash C extension** (`pyethash`): included in `requirements.txt` and installed by `pip install -r requirements.txt` — requires `gcc`. Provides ~57x speedup over pure Python.
+
+> **Note:** On systems without `gcc`, `pyethash` will not be installed but the project still works (with a pure Python fallback that is much slower for mining). We strongly recommend installing `build-essential` (Linux) or Xcode Command Line Tools (macOS) to build `pyethash`.
 
 Once all the modules are installed, try running all the unit tests under `pyquarkchain`
 

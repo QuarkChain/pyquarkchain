@@ -10,7 +10,7 @@ from eth_hash.auto import keccak
 from Crypto.Hash import (
     keccak as keccaklib,
 )  # keccak from pycryptodome; unlike eth_hash, its update() method does not leak memory
-from eth_hash.preimage import BasePreImage
+from eth_hash.abc import PreImageAPI
 
 import rlp
 from rlp import sedes
@@ -47,7 +47,7 @@ opened_connections = {}
 async def handshake(
     remote: kademlia.Node, privkey: datatypes.PrivateKey, token: CancelToken
 ) -> Tuple[
-    bytes, bytes, BasePreImage, BasePreImage, asyncio.StreamReader, asyncio.StreamWriter
+    bytes, bytes, PreImageAPI, PreImageAPI, asyncio.StreamReader, asyncio.StreamWriter
 ]:  # noqa: E501
     """
     Perform the auth handshake with given remote.
@@ -70,7 +70,7 @@ async def _handshake(
     reader: asyncio.StreamReader,
     writer: asyncio.StreamWriter,
     token: CancelToken,
-) -> Tuple[bytes, bytes, BasePreImage, BasePreImage]:
+) -> Tuple[bytes, bytes, PreImageAPI, PreImageAPI]:
     """See the handshake() function above.
 
     This code was factored out into this helper so that we can create Peers with directly
@@ -140,7 +140,7 @@ class HandshakeBase:
         remote_ephemeral_pubkey: datatypes.PublicKey,
         auth_init_ciphertext: bytes,
         auth_ack_ciphertext: bytes,
-    ) -> Tuple[bytes, bytes, BasePreImage, BasePreImage]:
+    ) -> Tuple[bytes, bytes, PreImageAPI, PreImageAPI]:
         """Derive base secrets from ephemeral key agreement."""
         # ecdhe-shared-secret = ecdh.agree(ephemeral-privkey, remote-ephemeral-pubk)
         ecdhe_shared_secret = ecies.ecdh_agree(

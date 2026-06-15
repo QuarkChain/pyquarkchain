@@ -106,7 +106,7 @@ class Cluster:
             extra_cmd += " --enable_profiler=true"
         master = await run_master(self.config.json_filepath, extra_cmd)
         prefix = "{}MASTER".format(self.cluster_id)
-        asyncio.ensure_future(print_output(prefix, master.stdout))
+        asyncio.create_task(print_output(prefix, master.stdout))
         self.procs.append((prefix, master))
 
     async def run_slaves(self):
@@ -117,7 +117,7 @@ class Cluster:
                 slave.ID in self.args.profile.split(","),
             )
             prefix = "{}SLAVE_{}".format(self.cluster_id, slave.ID)
-            asyncio.ensure_future(print_output(prefix, s.stdout))
+            asyncio.create_task(print_output(prefix, s.stdout))
             self.procs.append((prefix, s))
 
     async def run_prom(self):
@@ -149,10 +149,10 @@ class Cluster:
 
     def start_and_loop(self):
         try:
-            asyncio.get_event_loop().run_until_complete(self.run())
+            asyncio.run(self.run())
         except KeyboardInterrupt:
             try:
-                asyncio.get_event_loop().run_until_complete(self.shutdown())
+                asyncio.run(self.shutdown())
             except Exception:
                 pass
 

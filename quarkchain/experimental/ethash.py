@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 import copy
+import math
 import sha3
 
 # constants of ethash
@@ -60,7 +61,9 @@ def xor(a, b):
 
 
 def isprime(x):
-    for i in range(2, int(x ** 0.5) + 1):
+    if x < 2:
+        return False
+    for i in range(2, math.isqrt(x) + 1):
         if x % i == 0:
             return False
     return True

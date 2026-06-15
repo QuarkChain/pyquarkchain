@@ -174,7 +174,7 @@ class DiscoveryProtocol(asyncio.DatagramProtocol):
             # with the least recently seen node on that bucket. If the bonding fails the node will
             # be removed from the bucket and a new one will be picked from the bucket's
             # replacement cache.
-            asyncio.ensure_future(self.bond(eviction_candidate))
+            asyncio.create_task(self.bond(eviction_candidate))
 
     async def bond(self, node: kademlia.Node) -> bool:
         """Bond with the given node.
@@ -1164,7 +1164,7 @@ class DiscoveryService(BaseService):
                 )
 
     async def _start_udp_listener(self) -> None:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         # TODO: Support IPv6 addresses as well.
         await loop.create_datagram_endpoint(
             lambda: self.proto, local_addr=("0.0.0.0", self.port), family=socket.AF_INET
@@ -1498,9 +1498,6 @@ def _test() -> None:
     from quarkchain.p2p import constants
     from quarkchain.p2p import ecies
 
-    loop = asyncio.get_event_loop()
-    loop.set_debug(True)
-
     parser = argparse.ArgumentParser()
     parser.add_argument("-bootnode", type=str, help="The enode to use as bootnode")
     parser.add_argument("-v5", action="store_true")
@@ -1537,9 +1534,12 @@ def _test() -> None:
         discovery = DiscoveryProtocol(privkey, addr, bootstrap_nodes, 1, cancel_token)
 
     async def run() -> None:
+        loop = asyncio.get_running_loop()
         await loop.create_datagram_endpoint(
             lambda: discovery, local_addr=("0.0.0.0", listen_port)
         )
+        for sig in [signal.SIGINT, signal.SIGTERM]:
+            loop.add_signal_handler(sig, discovery.cancel_token.trigger)
         try:
             await discovery.bootstrap()
             if args.v5:
@@ -1554,11 +1554,7 @@ def _test() -> None:
         finally:
             await discovery.stop()
 
-    for sig in [signal.SIGINT, signal.SIGTERM]:
-        loop.add_signal_handler(sig, discovery.cancel_token.trigger)
-
-    loop.run_until_complete(run())
-    loop.close()
+    asyncio.run(run(), debug=True)
 
 
 if __name__ == "__main__":

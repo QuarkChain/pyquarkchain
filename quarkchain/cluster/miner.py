@@ -187,10 +187,14 @@ class Miner:
         # key can be None, meaning default coinbase address from local config
         self.current_works = LRUCache(128)
         self.root_signer_private_key = root_signer_private_key
+        self._mining_task = None
+        # anchors the short-lived "prepare next block" tasks spawned from
+        # within the mining loop so they aren't GC'd mid-execution
+        self._pending_block_tasks = set()
 
     def start(self):
         self.enabled = True
-        self._mine_new_block_async()
+        self._mining_task = self._mine_new_block_async()
 
     def is_enabled(self):
         return self.enabled
@@ -198,18 +202,38 @@ class Miner:
     def disable(self):
         """Stop the mining process if there is one"""
         if self.enabled and self.process:
-            # end the mining process
+            # Signal the subprocess to stop.  The None sentinel will be read by
+            # handle_mined_block which then exits cleanly.  Do NOT also cancel
+            # the task: cancelling leaves the sentinel in output_q unconsumed,
+            # so the next start() reads a stale None and exits immediately.
             self.input_q.put((None, {}))
+        elif self._mining_task and not self._mining_task.done():
+            # No subprocess to signal; cancel the task directly.
+            self._mining_task.cancel()
         self.enabled = False
+        self._mining_task = None
 
     def _mine_new_block_async(self):
         async def handle_mined_block():
             while True:
                 res = await self.output_q.coro_get()  # type: MiningResult
                 if not res:
+                    # The subprocess has put its terminating sentinel and is
+                    # exiting.  Reset the process handle so a subsequent start()
+                    # spawns a fresh subprocess instead of posting work to the
+                    # dead one (which would silently never mine).
+                    if self.process:
+                        # Use coro_join (runs join in an executor) instead of the
+                        # blocking join() so reaping the subprocess does not stall
+                        # the event loop.
+                        await self.process.coro_join()
+                        self.process = None
                     return  # empty result means ending
                 # start mining before processing and propagating mined block
-                self._mine_new_block_async()
+                next_task = self._mine_new_block_async()
+                if next_task:
+                    self._pending_block_tasks.add(next_task)
+                    next_task.add_done_callback(self._pending_block_tasks.discard)
                 block = self.work_map[res.header_hash]
                 block.header.nonce = res.nonce
                 block.header.mixhash = res.mixhash
@@ -234,6 +258,12 @@ class Miner:
             If a mining process has already been started, update the process to mine the new block.
             """
             block = await self.create_block_async_func(Address.create_empty_account())
+            # disable() may have run while we were awaiting block creation.  If so,
+            # bail out: with self.process now reset to None, falling through would
+            # spawn a fresh subprocess that disable() has already finished tearing
+            # down and can no longer stop, leaving an unstoppable rogue miner.
+            if not self.enabled:
+                return
             if not block:
                 self.input_q.put((None, {}))
                 return
@@ -266,7 +296,7 @@ class Miner:
         # no-op if enabled or mining remotely
         if not self.enabled or self.remote:
             return None
-        return asyncio.ensure_future(mine_new_block())
+        return asyncio.create_task(mine_new_block())
 
     async def get_work(self, coinbase_addr: Address, now=None) -> (MiningWork, Block):
         if not self.remote:

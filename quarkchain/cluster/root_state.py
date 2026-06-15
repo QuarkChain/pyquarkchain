@@ -261,6 +261,11 @@ class RootState:
         # header hash -> [coinbase address] during previous blocks (ascending)
         self.coinbase_addr_cache = LRUCache(maxsize=128)
 
+        # strong refs to fire-and-forget monitoring tasks: CPython's event loop
+        # only weakly references tasks, so without this they could be GC'd
+        # mid-execution
+        self._background_tasks = set()
+
         self.tip = self.db.get_tip_header()  # type: RootBlockHeader
         if self.tip:
             Logger.info(
@@ -610,11 +615,15 @@ class RootState:
                 "propagation_latency_ms": start_ms - tracking_data.get("mined", 0),
                 "num_tx": len(block.minor_block_header_list),
             }
-            asyncio.ensure_future(
+            # keep a strong ref until it finishes: the event loop only weakly
+            # references tasks, so an unreferenced one can be GC'd mid-execution
+            task = asyncio.create_task(
                 self.env.cluster_config.kafka_logger.log_kafka_sample_async(
                     self.env.cluster_config.MONITORING.PROPAGATION_TOPIC, sample
                 )
             )
+            self._background_tasks.add(task)
+            task.add_done_callback(self._background_tasks.discard)
 
         if self.tip.total_difficulty < block.header.total_difficulty:
             old_tip = self.tip

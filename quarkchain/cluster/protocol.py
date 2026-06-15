@@ -22,7 +22,6 @@ class ProxyConnection(Connection):
         op_ser_map,
         op_non_rpc_map,
         op_rpc_map,
-        loop=None,
         metadata_class=None,
         name=None,
         command_size_limit=None,
@@ -34,7 +33,6 @@ class ProxyConnection(Connection):
             op_ser_map,
             op_non_rpc_map,
             op_rpc_map,
-            loop=loop,
             metadata_class=metadata_class,
             name=name,
             command_size_limit=command_size_limit,
@@ -110,12 +108,11 @@ class VirtualConnection(AbstractConnection):
         op_ser_map,
         op_non_rpc_map,
         op_rpc_map,
-        loop=None,
         metadata_class=Metadata,
         name=None,
     ):
         super().__init__(
-            op_ser_map, op_non_rpc_map, op_rpc_map, loop, metadata_class, name=name
+            op_ser_map, op_non_rpc_map, op_rpc_map, metadata_class, name=name
         )
         self.read_deque = deque()
         self.read_event = asyncio.Event()
@@ -147,7 +144,7 @@ class VirtualConnection(AbstractConnection):
 
 class NullConnection(AbstractConnection):
     def __init__(self):
-        super().__init__(dict(), dict(), dict(), None, Metadata, name="NULL_CONNECTION")
+        super().__init__(dict(), dict(), dict(), name="NULL_CONNECTION")
 
     def write_raw_data(self, metadata, raw_data):
         pass
@@ -192,8 +189,7 @@ class P2PConnection(ProxyConnection):
         op_ser_map,
         op_non_rpc_map,
         op_rpc_map,
-        loop=None,
-        metadata_class=None,
+        name=None,
         command_size_limit=None,
     ):
         super().__init__(
@@ -203,9 +199,8 @@ class P2PConnection(ProxyConnection):
             op_ser_map,
             op_non_rpc_map,
             op_rpc_map,
-            loop,
-            P2PMetadata,
-            name=metadata_class,
+            metadata_class=P2PMetadata,
+            name=name,
             command_size_limit=command_size_limit,
         )
 
@@ -233,7 +228,6 @@ class ClusterConnection(ProxyConnection):
         op_ser_map,
         op_non_rpc_map,
         op_rpc_map,
-        loop=None,
         name=None,
     ):
         super().__init__(
@@ -243,8 +237,7 @@ class ClusterConnection(ProxyConnection):
             op_ser_map,
             op_non_rpc_map,
             op_rpc_map,
-            loop,
-            ClusterMetadata,
+            metadata_class=ClusterMetadata,
             name=name,
         )
         self.peer_rpc_ids = dict()
