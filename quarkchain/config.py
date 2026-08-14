@@ -335,6 +335,10 @@ class QuarkChainConfig(BaseConfig):
     ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP = None
     ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP = None
     ENABLE_POSW_STAKING_DECAY_TIMESTAMP = None
+    # Unlike the flags above, None means disabled: activating this one changes
+    # the state root, so a running network must opt in with an explicit
+    # timestamp rather than at whatever moment it upgrades the software.
+    ENABLE_FULL_SHARD_KEY_ON_WRITE_TIMESTAMP = None
 
     MIN_TX_POOL_GAS_PRICE = 10 ** 9  # lowest gas price to accept, default 1 Gwei
     MIN_MINING_GAS_PRICE = 10 ** 9  # lowest gas price to pack tx for mining, 1 Gwei

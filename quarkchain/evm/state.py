@@ -359,9 +359,27 @@ class State:
         while len(self.prev_headers) > 256:
             self.prev_headers.pop()
 
+    def _full_shard_key_on_write_enabled(self):
+        if self.qkc_config is None:
+            return False
+        ts = self.qkc_config.ENABLE_FULL_SHARD_KEY_ON_WRITE_TIMESTAMP
+        return ts is not None and self.timestamp >= ts
+
     def get_and_cache_account(self, address, should_cache=True):
         if address in self.cache:
-            return self.cache[address]
+            acct = self.cache[address]
+            # The blank account below is minted with whatever full_shard_key was
+            # current when the address was first looked up, and the cache lives
+            # for a whole block, so a read from an earlier tx would otherwise
+            # decide the key. Keep restamping until a write brings the account
+            # into existence.
+            if (
+                acct.full_shard_key != self.full_shard_key
+                and self._full_shard_key_on_write_enabled()
+                and acct.is_blank()
+            ):
+                acct.full_shard_key = self.full_shard_key
+            return acct
         rlpdata = self.trie.get(address)
         if rlpdata != trie.BLANK_NODE:
             if self.use_mock_evm_account:

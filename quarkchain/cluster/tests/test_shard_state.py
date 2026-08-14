@@ -3989,3 +3989,78 @@ class TestShardState(unittest.IsolatedAsyncioTestCase):
         self.assertNotEqual(bh, b"\x00" * 32)
         bh = query(257)
         self.assertEqual(bh, b"\x00" * 32)
+
+    def __mine_touch_then_fund(self, enable_timestamp):
+        """Mine one block where a zero-value transfer touches a brand new
+        address before another transfer actually funds it, each declaring a
+        different full shard key. Returns the recipient's stored key."""
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        env.quark_chain_config.ENABLE_FULL_SHARD_KEY_ON_WRITE_TIMESTAMP = (
+            enable_timestamp
+        )
+        state = create_default_shard_state(env=env)
+
+        recipient = Identity.create_random_identity().recipient
+        # with SHARD_SIZE == 2 both keys map to full shard id 2, so the two
+        # transfers stay in-shard
+        for nonce, (full_shard_key, value) in enumerate([(0, 0), (2, 1000)]):
+            tx = create_transfer_transaction(
+                shard_state=state,
+                key=id1.get_key(),
+                from_address=acc1,
+                to_address=Address(recipient, full_shard_key),
+                value=value,
+                nonce=nonce,
+            )
+            self.assertTrue(state.add_tx(tx))
+
+        b = state.create_block_to_mine(address=acc1)
+        self.assertEqual(len(b.tx_list), 2)
+        state.finalize_and_add_block(b)
+        self.assertEqual(
+            state.get_token_balance(recipient, self.genesis_token), 1000
+        )
+        return state.evm_state.get_full_shard_key(recipient)
+
+    async def test_full_shard_key_set_by_creating_tx(self):
+        self.assertEqual(self.__mine_touch_then_fund(enable_timestamp=0), 2)
+
+    async def test_full_shard_key_set_by_touching_tx_before_activation(self):
+        self.assertEqual(self.__mine_touch_then_fund(enable_timestamp=None), 0)
+
+    async def test_full_shard_key_of_untouched_account_unaffected(self):
+        id1 = Identity.create_random_identity()
+        acc1 = Address.create_from_identity(id1, full_shard_key=0)
+        env = get_test_env(genesis_account=acc1, genesis_minor_quarkash=10000000)
+        env.quark_chain_config.ENABLE_FULL_SHARD_KEY_ON_WRITE_TIMESTAMP = 0
+        state = create_default_shard_state(env=env)
+
+        recipient = Identity.create_random_identity().recipient
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=Address(recipient, 2),
+            value=1000,
+            nonce=0,
+        )
+        self.assertTrue(state.add_tx(tx))
+        b = state.create_block_to_mine(address=acc1)
+        state.finalize_and_add_block(b)
+        self.assertEqual(state.evm_state.get_full_shard_key(recipient), 2)
+
+        # an existing account keeps its key no matter who touches it later
+        tx = create_transfer_transaction(
+            shard_state=state,
+            key=id1.get_key(),
+            from_address=acc1,
+            to_address=Address(recipient, 0),
+            value=1,
+            nonce=1,
+        )
+        self.assertTrue(state.add_tx(tx))
+        b = state.create_block_to_mine(address=acc1)
+        state.finalize_and_add_block(b)
+        self.assertEqual(state.evm_state.get_full_shard_key(recipient), 2)
