@@ -1,7 +1,7 @@
 import pytest
 
 from quarkchain.db import InMemoryDb
-from quarkchain.evm.state import TokenBalances, BLANK_ROOT
+from quarkchain.evm.state import State, TokenBalances, BLANK_ROOT
 from quarkchain.utils import token_id_encode
 
 
@@ -232,8 +232,49 @@ def test_reset_balance_in_trie_and_revert():
     b.reset(journal)
     assert b.is_blank()
     assert b.to_dict() == {}
-    for op in journal:
-        op()
+    # unwind LIFO, the order State.revert uses
+    while journal:
+        journal.pop()()
     assert not b.is_blank()
     assert b.to_dict() == mapping
     assert b._balances != {}
+
+
+def test_reset_balance_in_dict_and_revert():
+    db = InMemoryDb()
+    b = TokenBalances(b"", db)
+    mapping = {token_id_encode("Q" + chr(65 + i)): int(i * 1e3) + 42 for i in range(3)}
+    b._balances = mapping.copy()
+    b.commit()
+    # below the trie threshold, so balances stay in the in-memory map
+    assert b.token_trie is None
+
+    journal = []
+    b.set_balance(journal, 999, 999)
+    b.reset(journal)
+    assert b.is_blank()
+    assert b.to_dict() == {}
+
+    while journal:
+        journal.pop()()
+    assert not b.is_blank()
+    for token_id, bal in mapping.items():
+        assert b.balance(token_id) == bal
+    # undoing a set_balance writes the previous value back, so an entry the
+    # account never had before ends up holding zero
+    assert b.balance(999) == 0
+
+
+def test_del_account_and_revert_restores_balances():
+    state = State()
+    addr = b"\x01" * 20
+    token = token_id_encode("QKC")
+    state.set_token_balance(addr, token, 100)
+    state.commit()
+
+    snapshot = state.snapshot()
+    state.del_account(addr)
+    assert state.get_balance(addr, token) == 0
+
+    state.revert(snapshot)
+    assert state.get_balance(addr, token) == 100
