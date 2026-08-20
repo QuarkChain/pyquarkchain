@@ -672,6 +672,8 @@ def vm_execute(ext, msg, code):
             mstart, msz = stk.pop(), stk.pop()
             topics = [stk.pop() for x in range(depth)]
             compustate.gas -= msz * opcodes.GLOGBYTE
+            if compustate.gas < 0:
+                return vm_exception("OOG PAYING FOR LOG")
             if msg.static:
                 return vm_exception("Cannot LOG inside a static context")
             if not mem_extend(mem, compustate, op, mstart, msz):
@@ -690,6 +692,8 @@ def vm_execute(ext, msg, code):
                 value, mstart, msz, salt = stk.pop(), stk.pop(), stk.pop(), stk.pop()
                 salt = salt.to_bytes(32, byteorder="big")
                 compustate.gas -= opcodes.GSHA3WORD * ceil(msz / 32)
+                if compustate.gas < 0:
+                    return vm_exception("OOG PAYING FOR CREATE2")
 
             if not mem_extend(mem, compustate, op, mstart, msz):
                 return vm_exception("OOG EXTENDING MEMORY")
