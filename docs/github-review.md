@@ -5,6 +5,7 @@
 本文用于组织以下两个提交的协作 review，目标是用最少的重复工作确认升级是否会影响 QuarkChain 共识：
 
 - [`pyquarkchain@f635479d`](https://github.com/QuarkChain/pyquarkchain/commit/f635479d08238b35c67d4da9e1eadd132be7d4b3)：Python 3.13、Ethash、asyncio、JSON-RPC 和 UPnP 升级
+- [`pyquarkchain@ba790a9a`](https://github.com/QuarkChain/pyquarkchain/commit/ba790a9a23148b00b9c0f52b32c6dc19eefbe7cd)：将 `python-rocksdb` 替换为 `rocksdict`
 - [`ethash@907b7d8`](https://github.com/QuarkChain/ethash/commit/907b7d8064d3be09536e754bbf469b442f2e213d)：`requirements.txt` 固定使用的 `pyethash` C 扩展
 
 ## Review 目标
@@ -181,6 +182,12 @@ assert tx.eth_chain_id - BASE_ETH_CHAIN_ID - 1 == tx.from_chain_id
 # P2：需要 review，但预计不改变共识规则
 
 ## 项目：pyquarkchain
+
+### 目录：`quarkchain/db.py` 和持久化数据库测试
+
+提交：[`ba790a9a`](https://github.com/QuarkChain/pyquarkchain/commit/ba790a9a23148b00b9c0f52b32c6dc19eefbe7cd)
+
+将数据库依赖从 `python-rocksdb` 换成 `rocksdict`，并增加持久化数据库测试。重点确认节点能够正常打开、读写和关闭数据库，已有数据可以继续读取；这项修改不改变区块验证或状态转换规则。
 
 ### 目录：`quarkchain/cluster/`
 

@@ -5,6 +5,7 @@
 This guide covers the review of these two commits. The main goal is to check whether the upgrade changes QuarkChain consensus behavior:
 
 - [`pyquarkchain@f635479d`](https://github.com/QuarkChain/pyquarkchain/commit/f635479d08238b35c67d4da9e1eadd132be7d4b3): Python 3.13, Ethash, asyncio, JSON-RPC, and UPnP updates
+- [`pyquarkchain@ba790a9a`](https://github.com/QuarkChain/pyquarkchain/commit/ba790a9a23148b00b9c0f52b32c6dc19eefbe7cd): replace `python-rocksdb` with `rocksdict`
 - [`ethash@907b7d8`](https://github.com/QuarkChain/ethash/commit/907b7d8064d3be09536e754bbf469b442f2e213d): the `pyethash` C extension pinned in `requirements.txt`
 
 ## Review Goals
@@ -175,6 +176,12 @@ Review points:
 # P2: Review Needed, No Expected Consensus Change
 
 ## Project: pyquarkchain
+
+### `quarkchain/db.py` and persistent database tests
+
+Commit: [`ba790a9a`](https://github.com/QuarkChain/pyquarkchain/commit/ba790a9a23148b00b9c0f52b32c6dc19eefbe7cd)
+
+The database dependency changed from `python-rocksdb` to `rocksdict`, with new persistent database tests. Check that the node can open, read, write, and close the database, and that existing data can still be read. This change does not change block checks or state rules.
 
 ### Directory: `quarkchain/cluster/`
 
