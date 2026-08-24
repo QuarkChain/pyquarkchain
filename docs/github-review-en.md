@@ -36,37 +36,45 @@ Commit: [`f635479d`](https://github.com/QuarkChain/pyquarkchain/commit/f635479d0
 
 [View diff](https://github.com/QuarkChain/pyquarkchain/commit/f635479d08238b35c67d4da9e1eadd132be7d4b3#diff-f73cc0d1e271cf5db57437cec1bdfc303c2d30bd28392e0c966ca1f729450ace)
 
-Changes:
+Main changes:
 
-- SHA3 input and output changed from Python `list[int]` values to explicit little-endian NumPy `uint32` arrays.
-- `get_cache_size()` and `get_full_size()` now take an epoch instead of a block number.
-- `isprime()` now uses `math.isqrt()` and handles square-root limits and values below 2.
-- Size results use an LRU cache.
+- `get_cache_size()` and `get_full_size()` now take an epoch instead of a block number and use an LRU cache. They are used by the production `pyethash` path.
+- SHA3 input and output changed from Python `list[int]` values to little-endian NumPy `uint32` arrays.
+- `isprime()` now uses `math.isqrt()` and adds boundary checks.
 
-Review points:
+Consensus review points:
 
-- Cache and full sizes must match standard Ethash and `pyethash`.
-- All callers must pass an epoch, not a block number.
-- Little-endian bytes must match the old code and the C code.
-- The `isprime()` fix changes the old pure-Python cache size at epoch 520 from `84,934,592` to the standard value `84,934,336`. Check which code old production nodes use.
+- Size results must match standard Ethash and `pyethash`.
+- The other changes must not change the pure Python/NumPy result. The `isprime()` fix changes the old pure-Python cache size at epoch 520 from `84,934,592` to the standard value `84,934,336`.
 
 #### File: `ethash.py`
 
 [View diff](https://github.com/QuarkChain/pyquarkchain/commit/f635479d08238b35c67d4da9e1eadd132be7d4b3#diff-b3319c80fd7deb6f2713c9e4352ef42dd88bfcf1bc540db92e59312640f8f75d)
 
-Changes:
+`pyethash` path:
+
+- Uses `pyethash` to build the cache and uses `pyethash.hashimoto_light()` for Hashimoto by default.
+- `_get_pyethash_cache()`: builds the cache with `pyethash` and keeps both a NumPy view and raw bytes to reduce conversion and copying.
+- `mkcache_pyethash()`: uses the `pyethash` cache by default and falls back to Python for non-standard test sizes.
+- `hashimoto_light_pyethash()`: calls `pyethash.hashimoto_light()` for Hashimoto.
+
+Consensus review points:
+
+- Production must use the pinned `pyethash` version.
+- The same header, nonce, and epoch must return the same mix digest and final result as the old code.
+- Code selection and cache changes must not change the result.
+
+Pure `Python` path:
 
 - Cache, dataset items, and mix values changed from Python lists to NumPy `uint32` arrays.
-- FNV, dataset item, and Hashimoto code was rewritten with NumPy. The rules must stay the same.
-- The code can use either the Python/NumPy code or the `pyethash` C extension.
-- `pyethash.hashimoto_light()` is used by default. Tests with a non-standard DAG size use the Python code.
-- The node's 8-byte nonce is changed to the integer type required by `pyethash`. The nonce value does not change.
+- FNV, dataset item, and Hashimoto code was rewritten with NumPy.
+- This path is used when `pyethash` is not installed. Tests with a non-standard DAG size also use it.
+- `set_ethash_lib()` is only used by tests to switch between Python and `pyethash`; it is not part of the production path.
 
-Review points:
+Consensus review points:
 
-- For the same header, nonce, and epoch, the old code, NumPy code, and `pyethash` must return the same mix digest and final result.
-- Two machines must not get different results because they choose different implementations.
-- Cache changes and LRU use may change speed, but must not change cache data.
+- NumPy must follow the same rules and return the same result as the old pure-Python code. Standard inputs must also match `pyethash`.
+- Cache and LRU changes may change speed, but must not change cache data.
 
 #### File: `ethpow.py`
 

@@ -38,36 +38,44 @@
 
 主要修改：
 
-- SHA3 输入输出由 Python `list[int]` 改为显式 little-endian NumPy `uint32` 数组。
-- `get_cache_size()` 和 `get_full_size()` 的参数从 block number 改为 epoch。
-- `isprime()` 改用 `math.isqrt()`，并补齐平方根边界和小于 2 的判断。
-- size 计算增加 LRU cache。
+- `get_cache_size()` 和 `get_full_size()` 的参数从 block number 改为 epoch，并增加 LRU cache。这两个函数会被生产 `pyethash` 路径使用。
+- SHA3 输入输出由 Python `list[int]` 改为 little-endian NumPy `uint32` 数组。
+- `isprime()` 改用 `math.isqrt()`，并补齐边界判断。
 
 共识关注点：
 
-- cache/full size 必须与标准 Ethash 及 `pyethash` 完全一致。
-- 调用方必须全部传 epoch，不能仍传 block number。
-- little-endian 序列化必须与旧实现和 C 实现一致。
-- `isprime()` 修复会使旧纯 Python fallback 在 epoch 520 的 cache size 从 `84,934,592` 变为标准值 `84,934,336`；需要确认线上旧节点实际使用的实现。
+- size 计算必须与标准 Ethash 和 `pyethash` 一致。
+- 其他修改不能改变纯 Python/NumPy 实现的结果。`isprime()` 修复会使旧纯 Python fallback 在 epoch 520 的 cache size 从 `84,934,592` 变为标准值 `84,934,336`。
 
 
 #### 文件：`ethash.py`
 
 [查看文件 diff](https://github.com/QuarkChain/pyquarkchain/commit/f635479d08238b35c67d4da9e1eadd132be7d4b3#diff-b3319c80fd7deb6f2713c9e4352ef42dd88bfcf1bc540db92e59312640f8f75d)
 
-主要修改：
+`pyethash` 路径：
 
-- cache、dataset item 和 mix 从 Python list 重写为 NumPy `uint32` 数组。
-- 使用 NumPy 重写 FNV、dataset item 和 Hashimoto 的核心计算，计算规则应与原实现保持一致。
-- 增加 Python/`pyethash` 后端调度和运行时切换。
-- 默认使用 `pyethash.hashimoto_light()`，使用非标准 DAG size 的测试场景回退到 Python 实现。
-- 调用 `pyethash` 时，将节点使用的 8 字节 nonce 转换为 C 扩展要求的整数格式，nonce 的值保持不变。
+- 默认使用 `pyethash` 生成 cache，并通过 `pyethash.hashimoto_light()` 计算 Hashimoto。
+- `_get_pyethash_cache()`：使用 `pyethash` 生成 cache，同时保留 NumPy view 和原始 bytes，减少转换和复制。
+- `mkcache_pyethash()`：默认使用 `pyethash` cache；非标准测试 size 回退到 Python 实现。
+- `hashimoto_light_pyethash()`：调用 `pyethash.hashimoto_light()` 计算 Hashimoto。
 
 共识关注点：
 
-- 对相同的 header、nonce 和 epoch，NumPy 实现、`pyethash` 和修改前的实现必须产生相同的 mix digest 和最终结果。
-- 后端自动选择不能让不同机器计算出不同结果。
-- cache 切换和 LRU 行为只能影响性能，不能改变 cache 内容。
+- 生产环境必须使用指定版本的 `pyethash`。
+- 相同的 header、nonce 和 epoch 必须得到与修改前相同的 mix digest 和最终结果。
+- 实现选择和 cache 切换不能改变计算结果。
+
+纯 `Python` 路径：
+
+- cache、dataset item 和 mix 从 Python list 改为 NumPy `uint32` 数组。
+- 使用 NumPy 重写 FNV、dataset item 和 Hashimoto 的核心计算。
+- 未安装 `pyethash` 时使用这条路径；使用非标准 DAG size 的测试也会回退到这条路径。
+- `set_ethash_lib()` 仅用于测试时切换 Python 和 `pyethash`，不属于生产路径。
+
+共识关注点：
+
+- NumPy 重写后的计算规则和结果必须与修改前的纯 Python 实现一致，并且标准输入的结果必须与 `pyethash` 一致。
+- cache 和 LRU 修改只能影响性能，不能改变 cache 内容。
 
 
 #### 文件：`ethpow.py`
