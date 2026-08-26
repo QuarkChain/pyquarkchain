@@ -1,8 +1,9 @@
 import unittest
 
 import numpy as np
+import numpy.testing as npt
 
-from ethereum.pow.ethash import mkcache, calc_dataset, hashimoto_light, hashimoto_full
+from ethereum.pow.ethash import mkcache, calc_dataset, hashimoto_light, hashimoto_full, mkcache_pyethash, mkcache_python, get_cache_size
 from ethereum.pow.ethash_utils import EPOCH_LENGTH, HASH_BYTES
 from ethereum.pow.ethpow import EthashMiner, check_pow
 
@@ -42,6 +43,14 @@ class TestEthash(unittest.TestCase):
             cache = mkcache(cache_size, epoch)
             cache_hex = "".join(row.tobytes().hex() for row in cache)
             self.assertEqual(cache_hex, expected_cache[2:])
+
+    def test_cache_pyethash_matches_python(self):
+            for epoch in range(2):
+                cache_size = get_cache_size(epoch)
+                cache_pyethash = mkcache_pyethash(cache_size, epoch)
+                cache_python = mkcache_python(cache_size, epoch)
+
+                npt.assert_array_equal(cache_pyethash, cache_python)
 
     def test_dataset_gen(self):
         # epoch, cache size, dataset size, expected dataset
