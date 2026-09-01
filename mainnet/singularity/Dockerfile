@@ -1,3 +1,5 @@
+# syntax=docker/dockerfile:1
+
 FROM python:3.13-slim 
 LABEL maintainer="quarkchain"
 
@@ -22,7 +24,14 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --upgrade pip
 
-RUN git clone "$GIT_REPOSITORY" /code/pyquarkchain
+RUN --mount=type=secret,id=github_token,required=false \
+    if [ -s /run/secrets/github_token ]; then \
+        GIT_AUTH="$(printf 'x-access-token:%s' "$(cat /run/secrets/github_token)" | base64 | tr -d '\n')"; \
+        git -c http.extraHeader="Authorization: Basic $GIT_AUTH" \
+            clone "$GIT_REPOSITORY" /code/pyquarkchain; \
+    else \
+        git clone "$GIT_REPOSITORY" /code/pyquarkchain; \
+    fi
 WORKDIR /code/pyquarkchain
 
 RUN echo "checkout to $GIT_TAG" && git checkout "$GIT_TAG"
@@ -30,6 +39,10 @@ RUN echo "checkout to $GIT_TAG" && git checkout "$GIT_TAG"
 RUN pip install -r requirements.txt
 
 RUN curl -fsSL https://s3-us-west-2.amazonaws.com/pyqkcmainnet/libqkchash.so -o /code/pyquarkchain/qkchash/libqkchash.so
+
+RUN rm -rf /code/pyquarkchain/.git \
+ && apt-get purge -y git \
+ && apt-get autoremove -y
 
 
 EXPOSE 22 38291 38391 38491
