@@ -1,6 +1,9 @@
 FROM python:3.13-slim 
 LABEL maintainer="quarkchain"
 
+ARG GIT_REPOSITORY=https://github.com/QuarkChain/pyquarkchain.git
+ARG GIT_TAG=master
+
 RUN apt-get update && apt-get install -y \
     build-essential \
     gcc \
@@ -19,11 +22,10 @@ RUN apt-get update && apt-get install -y \
 
 RUN pip install --upgrade pip
 
-RUN git clone https://github.com/QuarkChain/pyquarkchain.git /code/pyquarkchain
+RUN git clone "$GIT_REPOSITORY" /code/pyquarkchain
 WORKDIR /code/pyquarkchain
 
-ARG GIT_TAG
-RUN echo "checkout to $GIT_TAG" && git checkout $GIT_TAG
+RUN echo "checkout to $GIT_TAG" && git checkout "$GIT_TAG"
 
 RUN pip install -r requirements.txt
 
