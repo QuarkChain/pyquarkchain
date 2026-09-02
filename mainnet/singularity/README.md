@@ -10,7 +10,7 @@ the default revision is `master`:
 ```bash
 docker build \
   -f mainnet/singularity/Dockerfile \
-  -t pyquarkchain:master \
+  -t "<docker image name>" \
   .
 ```
 
@@ -23,17 +23,31 @@ organization uses SSO, authorize the token for that organization as well.
 Provide the token as a BuildKit secret so it is not stored in an image layer or
 passed as a Docker build argument:
 
+For Bash:
+
 ```bash
 read -rsp "GitHub token: " GITHUB_TOKEN
 echo
 export GITHUB_TOKEN
+```
 
+For zsh:
+
+```zsh
+read -rs "GITHUB_TOKEN?GitHub token: "
+echo
+export GITHUB_TOKEN
+```
+
+Then build the image:
+
+```sh
 docker build \
   --secret id=github_token,env=GITHUB_TOKEN \
   -f mainnet/singularity/Dockerfile \
   --build-arg GIT_REPOSITORY=https://github.com/QuarkChain/pyquarkchain-hot-fix.git \
-  --build-arg GIT_TAG=fix/create2-gas \
-  -t pyquarkchain:hotfix \
+  --build-arg GIT_TAG="<branch>" \
+  -t "<docker image name>" \
   .
 
 unset GITHUB_TOKEN
