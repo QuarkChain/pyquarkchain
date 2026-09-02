@@ -307,7 +307,7 @@ def get_next_port():
     if not hasattr(get_next_port, "_allocated_ports"):
         get_next_port._allocated_ports = set()
 
-    while True:
+    for _ in range(100):
         with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
             s.bind(("", 0))
             s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
@@ -315,6 +315,7 @@ def get_next_port():
         if port not in get_next_port._allocated_ports:
             get_next_port._allocated_ports.add(port)
             return port
+    raise RuntimeError("could not find an unused port after 100 attempts")
 
 
 async def create_test_clusters(

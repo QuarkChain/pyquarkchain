@@ -10,7 +10,7 @@ eth-utils==6.0.0
 eth-keys==0.7.0
 eth-bloom==3.1.0
 httpx==0.28.1
-setuptools==82.0.1
+setuptools==83.0.0
 numpy==2.4.6
 psutil==7.2.2
 rocksdict==0.3.29
