@@ -1,6 +1,8 @@
+import asyncio
 import json
 import unittest
 from contextlib import asynccontextmanager
+from unittest.mock import patch
 import aiohttp
 import rlp
 import websockets
@@ -2259,6 +2261,25 @@ async def _protocol_echo(self, value):
     return value
 
 
+async def _protocol_slow(self, delay):
+    started = getattr(self, "_test_handler_started", None)
+    if started is not None:
+        started.set()
+    await asyncio.sleep(delay)
+    return "done"
+
+
+async def _protocol_slow_write(self, delay):
+    started = getattr(self, "_test_write_handler_started", None)
+    if started is not None:
+        started.set()
+    await asyncio.sleep(delay)
+    completed = getattr(self, "_test_write_handler_completed", None)
+    if completed is not None:
+        completed.set()
+    return "done"
+
+
 @asynccontextmanager
 async def jrpc_protocol_server_context():
     """Start a standalone JSON-RPC HTTP server with no MasterServer.
@@ -2274,6 +2295,8 @@ async def jrpc_protocol_server_context():
 
     methods = RpcMethods()
     methods.add(_protocol_echo, name="echo")
+    methods.add(_protocol_slow, name="slow")
+    methods.add(_protocol_slow_write, name="slowWrite")
 
     server = JSONRPCHttpServer(env, None, 38391, "127.0.0.1", methods)
     await server.start()
@@ -2305,6 +2328,123 @@ class TestJSONRPCProtocol(unittest.IsolatedAsyncioTestCase):
       - a notification (no "id") that errors must produce no response body
       - error responses are returned with HTTP 200
     """
+
+    async def test_request_timeout_releases_concurrency_slot(self):
+        with patch("quarkchain.cluster.jsonrpc.JSON_RPC_REQUEST_TIMEOUT", 0.01), patch(
+            "quarkchain.cluster.jsonrpc.JSON_RPC_MAX_CONCURRENCY", 1
+        ):
+            async with jrpc_protocol_server_context():
+
+                status, text = await post_raw(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "slow",
+                            "params": [1],
+                            "id": 1,
+                        }
+                    )
+                )
+                self.assertEqual(status, 200)
+                response = json.loads(text)
+                self.assertEqual(response["error"]["code"], -32000)
+                self.assertEqual(response["error"]["message"], "Request timeout")
+
+                status, text = await post_raw(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "echo",
+                            "params": ["ok"],
+                            "id": 2,
+                        }
+                    )
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(json.loads(text)["result"], "ok")
+
+    async def test_write_timeout_does_not_cancel_handler(self):
+        with patch("quarkchain.cluster.jsonrpc.JSON_RPC_REQUEST_TIMEOUT", 0.01), patch(
+            "quarkchain.cluster.jsonrpc.JSON_RPC_MAX_CONCURRENCY", 1
+        ), patch("quarkchain.cluster.jsonrpc.JSON_RPC_WRITE_METHODS", {"slowWrite"}):
+            async with jrpc_protocol_server_context() as server:
+                server._test_write_handler_started = asyncio.Event()
+                server._test_write_handler_completed = asyncio.Event()
+
+                status, text = await post_raw(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "slowWrite",
+                            "params": [0.2],
+                            "id": 1,
+                        }
+                    )
+                )
+                self.assertEqual(status, 200)
+                response = json.loads(text)
+                self.assertEqual(response["error"]["code"], -32000)
+                self.assertIn("may still be in progress", response["error"]["message"])
+
+                await asyncio.wait_for(
+                    server._test_write_handler_started.wait(), timeout=1
+                )
+                await asyncio.wait_for(
+                    server._test_write_handler_completed.wait(), timeout=1
+                )
+
+                status, text = await post_raw(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "echo",
+                            "params": ["after-write"],
+                            "id": 2,
+                        }
+                    )
+                )
+                self.assertEqual(status, 200)
+                self.assertEqual(json.loads(text)["result"], "after-write")
+
+    async def test_concurrency_limit_rejects_queued_request(self):
+        with patch("quarkchain.cluster.jsonrpc.JSON_RPC_REQUEST_TIMEOUT", 2), patch(
+            "quarkchain.cluster.jsonrpc.JSON_RPC_QUEUE_TIMEOUT", 0.01
+        ), patch("quarkchain.cluster.jsonrpc.JSON_RPC_MAX_CONCURRENCY", 1):
+            async with jrpc_protocol_server_context() as server:
+                server._test_handler_started = asyncio.Event()
+
+                first_request = asyncio.create_task(
+                    post_raw(
+                        json.dumps(
+                            {
+                                "jsonrpc": "2.0",
+                                "method": "slow",
+                                "params": [1],
+                                "id": 1,
+                            }
+                        )
+                    )
+                )
+                await server._test_handler_started.wait()
+
+                status, text = await post_raw(
+                    json.dumps(
+                        {
+                            "jsonrpc": "2.0",
+                            "method": "echo",
+                            "params": ["rejected"],
+                            "id": 2,
+                        }
+                    )
+                )
+                self.assertEqual(status, 200)
+                response = json.loads(text)
+                self.assertEqual(response["error"]["code"], -32000)
+                self.assertEqual(response["error"]["message"], "Server busy")
+
+                first_status, first_text = await first_request
+                self.assertEqual(first_status, 200)
+                self.assertEqual(json.loads(first_text)["result"], "done")
 
     async def test_malformed_json_returns_parse_error(self):
         async with jrpc_protocol_server_context():

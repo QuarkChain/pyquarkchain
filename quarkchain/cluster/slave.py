@@ -75,7 +75,7 @@ from quarkchain.cluster.rpc import (
     SlaveInfo,
 )
 from quarkchain.cluster.shard import Shard, PeerShardConnection
-from quarkchain.constants import SYNC_TIMEOUT
+from quarkchain.constants import SYNC_MINOR_BLOCK_LIST_TIMEOUT, SYNC_TIMEOUT
 from quarkchain.core import Branch, TypedTransaction, Address, Log
 from quarkchain.core import (
     CrossShardTransactionList,
@@ -495,7 +495,10 @@ class MasterConnection(ClusterConnection):
                 (
                     add_block_success,
                     coinbase_amount_list,
-                ) = await self.slave_server.add_block_list_for_sync(block_chain)
+                ) = await asyncio.wait_for(
+                    self.slave_server.add_block_list_for_sync(block_chain),
+                    SYNC_MINOR_BLOCK_LIST_TIMEOUT,
+                )
                 if not add_block_success:
                     raise RuntimeError(
                         "Failed to add minor blocks for syncing root block"
