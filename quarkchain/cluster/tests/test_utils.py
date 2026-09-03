@@ -301,10 +301,21 @@ class Cluster:
 
 
 def get_next_port():
-    with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
-        s.bind(("", 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
+    # Do not reuse a port during this pytest process.  bind(0) releases the
+    # port immediately, while a cancelled async connection from a previous
+    # test may still be attempting its protocol handshake.
+    if not hasattr(get_next_port, "_allocated_ports"):
+        get_next_port._allocated_ports = set()
+
+    for _ in range(100):
+        with closing(socket.socket(socket.AF_INET, socket.SOCK_STREAM)) as s:
+            s.bind(("", 0))
+            s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            port = s.getsockname()[1]
+        if port not in get_next_port._allocated_ports:
+            get_next_port._allocated_ports.add(port)
+            return port
+    raise RuntimeError("could not find an unused port after 100 attempts")
 
 
 async def create_test_clusters(
