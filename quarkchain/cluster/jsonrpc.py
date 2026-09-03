@@ -44,6 +44,28 @@ DEFAULT_GASPRICE = 10 * denoms.gwei
 # TODO: revisit this parameter
 JSON_RPC_CLIENT_REQUEST_MAX_SIZE = 16 * 1024 * 1024
 
+# Keep public RPC overload protection independent of the cluster config.
+JSON_RPC_MAX_CONCURRENCY = 64
+JSON_RPC_QUEUE_TIMEOUT = 1
+JSON_RPC_REQUEST_TIMEOUT = 30
+
+# A timed-out read can be cancelled safely.  A write may already have changed
+# cluster state before it reaches an await point, so cancelling it would leave
+# the caller with an unknown partial result.  Keep these handlers running after
+# the HTTP deadline and report that the operation may still be in progress.
+JSON_RPC_WRITE_METHODS = frozenset(
+    {
+        "sendTransaction",
+        "sendRawTransaction",
+        "eth_sendRawTransaction",
+        "submitWork",
+        "addBlock",
+        "createTransactions",
+        "setTargetBlockTime",
+        "setMining",
+    }
+)
+
 
 EMPTY_TX_ID = "0x" + "0" * Constant.TX_ID_HEX_LENGTH
 
@@ -512,6 +534,8 @@ class JSONRPCHttpServer:
         self.env = env
         self.master = master_server
         self.counters = dict()
+        self._request_semaphore = asyncio.Semaphore(JSON_RPC_MAX_CONCURRENCY)
+        self._dispatch_tasks = set()
 
         # Bind RPC handler functions to this instance
         self.handlers = RpcMethods()
@@ -537,14 +561,70 @@ class JSONRPCHttpServer:
             self.counters[method] += 1
         else:
             self.counters[method] = 1
-        # Use asyncio.shield to prevent the handler from being cancelled when
-        # aiohttp server loses connection to client
-        response = await asyncio.shield(self.handlers.dispatch(d))
+        semaphore = self._request_semaphore
+        acquired = False
+        try:
+            await asyncio.wait_for(
+                semaphore.acquire(), JSON_RPC_QUEUE_TIMEOUT
+            )
+            acquired = True
+            dispatch_task = asyncio.create_task(self.handlers.dispatch(d))
+        except asyncio.TimeoutError:
+            Logger.warning_every_sec("JSON-RPC server busy; rejecting request", 1)
+            return self.__error_response(d, "Server busy")
+        except BaseException:
+            if acquired:
+                semaphore.release()
+            raise
+
+        self._dispatch_tasks.add(dispatch_task)
+        dispatch_task.add_done_callback(self.__dispatch_done)
+
+        # Read handlers can be cancelled at the deadline.  Writes are shielded
+        # so a client timeout cannot interrupt a state-changing operation.
+        is_write = isinstance(method, str) and method in JSON_RPC_WRITE_METHODS
+        dispatch_wait = (
+            asyncio.shield(dispatch_task)
+            if is_write
+            else dispatch_task
+        )
+        try:
+            response = await asyncio.wait_for(
+                dispatch_wait, JSON_RPC_REQUEST_TIMEOUT
+            )
+        except asyncio.TimeoutError:
+            Logger.warning_every_sec("JSON-RPC request timed out", 1)
+            message = "Request timeout"
+            if is_write:
+                message += "; operation may still be in progress"
+            return self.__error_response(d, message)
+
         if response is None:
             return web.Response()
         if "error" in response:
             Logger.error(response)
         return web.json_response(response)
+
+    def __dispatch_done(self, task):
+        self._dispatch_tasks.discard(task)
+        self._request_semaphore.release()
+        if not task.cancelled():
+            # Retrieve exceptions when the HTTP client disconnected while the
+            # shielded dispatch task was still running.
+            task.exception()
+
+    @staticmethod
+    def __error_response(request_json, message):
+        if isinstance(request_json, dict) and "id" not in request_json:
+            return web.Response()
+        req_id = request_json.get("id") if isinstance(request_json, dict) else None
+        return web.json_response(
+            {
+                "jsonrpc": "2.0",
+                "error": {"code": -32000, "message": message},
+                "id": req_id,
+            }
+        )
 
     async def start(self):
         app = web.Application(client_max_size=JSON_RPC_CLIENT_REQUEST_MAX_SIZE)
