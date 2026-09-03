@@ -25,9 +25,13 @@ RUN apt-get update && apt-get install -y \
 RUN pip install --upgrade pip
 
 RUN --mount=type=secret,id=github_token,required=false \
-    if [ -s /run/secrets/github_token ]; then \
+    if ! printf '%s\n' "$GIT_REPOSITORY" \
+        | grep -Eiq '^https://github\.com/QuarkChain/[^/]+(\.git)?$'; then \
+        echo "GIT_REPOSITORY must be under the QuarkChain organization on GitHub" >&2; \
+        exit 1; \
+    elif [ -s /run/secrets/github_token ]; then \
         GIT_AUTH="$(printf 'x-access-token:%s' "$(cat /run/secrets/github_token)" | base64 | tr -d '\n')"; \
-        git -c http.extraHeader="Authorization: Basic $GIT_AUTH" \
+        git -c http.https://github.com/.extraHeader="Authorization: Basic $GIT_AUTH" \
             clone "$GIT_REPOSITORY" /code/pyquarkchain; \
     else \
         git clone "$GIT_REPOSITORY" /code/pyquarkchain; \

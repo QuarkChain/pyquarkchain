@@ -9,6 +9,7 @@ the default revision is `master`:
 
 ```bash
 docker build \
+  --no-cache \
   -f mainnet/singularity/Dockerfile \
   -t "<docker image name>" \
   .
@@ -21,29 +22,20 @@ For a fine-grained token, grant `Contents: Read-only` permission. If the
 organization uses SSO, authorize the token for that organization as well.
 
 Provide the token as a BuildKit secret so it is not stored in an image layer or
-passed as a Docker build argument:
+passed as a Docker build argument. `GIT_REPOSITORY` must be an HTTPS repository
+under the `QuarkChain` organization; the organization and repository URL are
+case-insensitive, and the `.git` suffix is optional.
 
-For Bash:
+Run the following commands in Bash or zsh:
 
 ```bash
-read -rsp "GitHub token: " GITHUB_TOKEN
+printf "GitHub token: "
+read -rs GITHUB_TOKEN
 echo
 export GITHUB_TOKEN
-```
 
-For zsh:
-
-```zsh
-read -rs "GITHUB_TOKEN?GitHub token: "
-echo
-export GITHUB_TOKEN
-```
-
-Then build the image:
-
-```sh
 docker build \
-  --no-cache
+  --no-cache \
   --secret id=github_token,env=GITHUB_TOKEN \
   -f mainnet/singularity/Dockerfile \
   --build-arg GIT_REPOSITORY=https://github.com/QuarkChain/pyquarkchain-hot-fix.git \
@@ -54,5 +46,5 @@ docker build \
 unset GITHUB_TOKEN
 ```
 
-`GIT_TAG` may be a branch, tag, or commit SHA. Use a full commit SHA for a
-reproducible production image.
+`GIT_TAG` may be a branch, tag, or commit SHA. Use a full commit SHA to pin the
+source revision.
