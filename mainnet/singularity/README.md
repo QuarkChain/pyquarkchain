@@ -43,6 +43,7 @@ Then build the image:
 
 ```sh
 docker build \
+  --no-cache
   --secret id=github_token,env=GITHUB_TOKEN \
   -f mainnet/singularity/Dockerfile \
   --build-arg GIT_REPOSITORY=https://github.com/QuarkChain/pyquarkchain-hot-fix.git \
