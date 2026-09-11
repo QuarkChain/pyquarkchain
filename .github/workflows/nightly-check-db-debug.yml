@@ -44,32 +44,39 @@ jobs:
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data quarkchain/cluster/qkc-data/mainnet
 
-    - name: Debug remote StorageBox files
+    - name: Debug StorageBox snapshots
       if: always()
       run: |
+        echo "=== VERSION ==="
+        cat VERSION
+
+        echo "=== Archive-A.tar.gz ==="
         sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-          ssh -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              u446960-sub2@u446960-sub2.your-storagebox.de \
-          'echo "=== SSH_LOGIN_OK ===";
-          echo "=== pwd ===";
-          pwd;
-          echo "=== files ===";
-          ls -lah;
-          echo "=== VERSION ===";
-          cat VERSION;
-          echo "=== VERSION metadata ===";
-          ls -l --full-time VERSION;
-          echo "=== Archive-A metadata ===";
-          ls -l --full-time Archive-A.tar.gz 2>&1;
-          echo "=== Archive-B metadata ===";
-          ls -l --full-time Archive-B.tar.gz 2>&1;
-          echo "=== Archive-A content ===";
-          head -c 500 Archive-A.tar.gz 2>&1;
-          echo;
-          echo "=== Archive-B content ===";
-          head -c 500 Archive-B.tar.gz 2>&1;
-          echo'
+          scp -q \
+          -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          u446960-sub2@u446960-sub2.your-storagebox.de:Archive-A.tar.gz \
+          /tmp/Archive-A.tar.gz
+
+        ls -lh /tmp/Archive-A.tar.gz
+        echo "--- content ---"
+        head -c 500 /tmp/Archive-A.tar.gz
+        echo
+        echo "--- end ---"
+
+        echo "=== Archive-B.tar.gz ==="
+        sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+          scp -q \
+          -o StrictHostKeyChecking=no \
+          -o UserKnownHostsFile=/dev/null \
+          u446960-sub2@u446960-sub2.your-storagebox.de:Archive-B.tar.gz \
+          /tmp/Archive-B.tar.gz
+
+        ls -lh /tmp/Archive-B.tar.gz
+        echo "--- content ---"
+        head -c 500 /tmp/Archive-B.tar.gz
+        echo
+        echo "--- end ---"
 
     - name: Check DB
       run: |
