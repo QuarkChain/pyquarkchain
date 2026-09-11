@@ -44,6 +44,33 @@ jobs:
         tar xvfz data.tar.gz
         rm data.tar.gz && mv data quarkchain/cluster/qkc-data/mainnet
 
+    - name: Debug remote StorageBox files
+      if: always()
+      run: |
+        sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+          ssh -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              u446960-sub2@u446960-sub2.your-storagebox.de \
+          'echo "=== SSH_LOGIN_OK ===";
+          echo "=== pwd ===";
+          pwd;
+          echo "=== files ===";
+          ls -lah;
+          echo "=== VERSION ===";
+          cat VERSION;
+          echo "=== VERSION metadata ===";
+          ls -l --full-time VERSION;
+          echo "=== Archive-A metadata ===";
+          ls -l --full-time Archive-A.tar.gz 2>&1;
+          echo "=== Archive-B metadata ===";
+          ls -l --full-time Archive-B.tar.gz 2>&1;
+          echo "=== Archive-A content ===";
+          head -c 500 Archive-A.tar.gz 2>&1;
+          echo;
+          echo "=== Archive-B content ===";
+          head -c 500 Archive-B.tar.gz 2>&1;
+          echo'
+
     - name: Check DB
       run: |
         height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
