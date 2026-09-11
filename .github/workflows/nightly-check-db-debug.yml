@@ -1,7 +1,9 @@
 name: nightly-check-db-debug
 
 on:
-  workflow_dispatch:
+  push:
+    branches:
+      - debug-nightly-check-db
 
 env:
   PYTHONPATH: ${{ github.workspace }}
