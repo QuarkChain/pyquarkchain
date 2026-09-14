@@ -15,78 +15,157 @@ jobs:
     timeout-minutes: 4320
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        ref: master
+      - uses: actions/checkout@v4
+        with:
+          ref: master
 
-    - name: Install Dependencies and Build
-      run: |
-        apt update && apt upgrade -y && apt install sshpass -y
-        PYTHONPATH=/code/pyquarkchain pip3 install -e .
-        cd qkchash && make clean && make
+      - name: Install Dependencies and Build
+        run: |
+          apt update && apt upgrade -y && apt install -y sshpass openssh-client
+          PYTHONPATH=/code/pyquarkchain pip3 install -e .
+          cd qkchash && make clean && make
 
-    - name: Download DB snapshot
-      run: |
-        mkdir -p quarkchain/cluster/qkc-data
-        sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:VERSION VERSION
-        fileName=`cat VERSION`
-        sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:$fileName data.tar.gz
-        echo "=== VERSION content ==="
-        cat VERSION; echo
-        echo "=== data.tar.gz size ==="
-        ls -lh data.tar.gz
-        echo "=== file type ==="
-        file data.tar.gz || true
-        echo "=== gzip validity ==="
-        gzip -t data.tar.gz || true
-        echo "=== first 64 bytes (hex) ==="
-        head -c 64 data.tar.gz | od -An -tx1
-        tar xvfz data.tar.gz
-        rm data.tar.gz && mv data quarkchain/cluster/qkc-data/mainnet
+      - name: Download DB snapshot
+        run: |
+          mkdir -p quarkchain/cluster/qkc-data
+          
+          sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+            scp \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            u446960-sub2@u446960-sub2.your-storagebox.de:VERSION \
+            VERSION
+          
+          fileName=$(cat VERSION)
+          
+          echo "=== VERSION content ==="
+          cat VERSION
+          echo
+          echo "=== resolved filename ==="
+          printf '<%s>\n' "$fileName"
+          
+          sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+            scp \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            u446960-sub2@u446960-sub2.your-storagebox.de:"$fileName" \
+            data.tar.gz
 
-    - name: Debug StorageBox snapshots
-      if: always()
-      run: |
-        echo "=== VERSION ==="
-        cat VERSION
+          echo "=== data.tar.gz size ==="
+          ls -lh data.tar.gz
+          
+          echo "=== file type ==="
+          file data.tar.gz || true
+          
+          echo "=== gzip validity ==="
+          gzip -t data.tar.gz || true
+          
+          echo "=== first 64 bytes (hex) ==="
+          head -c 64 data.tar.gz | od -An -tx1
+          
+          tar xvfz data.tar.gz
+          rm data.tar.gz
+          mv data quarkchain/cluster/qkc-data/mainnet
 
-        echo "=== Archive-A.tar.gz ==="
-        sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-          scp -q \
-          -o StrictHostKeyChecking=no \
-          -o UserKnownHostsFile=/dev/null \
-          u446960-sub2@u446960-sub2.your-storagebox.de:Archive-A.tar.gz \
-          /tmp/Archive-A.tar.gz
+      - name: Debug StorageBox snapshots
+        if: always()
+        run: |
+          HOST="u446960-sub2@u446960-sub2.your-storagebox.de"
+          SFTP_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          
+          echo "========================================"
+          echo "StorageBox snapshot debug"
+          echo "========================================"
+          
+          echo
+          echo "=== VERSION ==="
+          cat VERSION 2>/dev/null || true
+          
+          echo
+          echo "=== 1. Root: Archive-A.tar.gz ==="
+          sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+            sftp \
+            -q \
+            $SFTP_OPTS \
+            "$HOST" <<'EOF' || true
+            stat Archive-A.tar.gz
+            EOF
+          
+            echo
+          echo "=== 2. Root: Archive-B.tar.gz ==="
+            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+            sftp \
+            -q \
+            $SFTP_OPTS \
+            "$HOST" <<'EOF' || true
+            stat Archive-B.tar.gz
+            EOF
+          
+            echo
+          echo "=== 3. public-data: Archive-A.tar.gz ==="
+            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+            sftp \
+            -q \
+            $SFTP_OPTS \
+            "$HOST" <<'EOF' || true
+            stat public-data/Archive-A.tar.gz
+            EOF
+          
+            echo
+          echo "=== 4. public-data: Archive-B.tar.gz ==="
+            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+            sftp \
+            -q \
+            $SFTP_OPTS \
+            "$HOST" <<'EOF' || true
+            stat public-data/Archive-B.tar.gz
+            EOF
+          
+            echo
+          echo "=== 5. public-data: Archive-A.py.tar.gz ==="
+            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+            sftp \
+            -q \
+            $SFTP_OPTS \
+            "$HOST" <<'EOF' || true
+            stat public-data/Archive-A.py.tar.gz
+            EOF
+          
+            echo
+          echo "=== 6. Known-good file: public-data/Archive-B.py.tar.gz ==="
+            echo "This is the file verified by the maintainer."
+            echo "It will be downloaded last."
+          
+            rm -f /tmp/Archive-B.py.tar.gz
+          
+            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
+            scp \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            u446960-sub2@u446960-sub2.your-storagebox.de:public-data/Archive-B.py.tar.gz \
+            /tmp/Archive-B.py.tar.gz
+          
+            echo
+            echo "=== Known-good file result ==="
+            ls -lh /tmp/Archive-B.py.tar.gz
+            stat -c '%s bytes' /tmp/Archive-B.py.tar.gz
+          echo "Expected size from maintainer: 1139212288 bytes"
+          
+            echo
+            echo "========================================"
+            echo "Debug finished"
+            echo "========================================"
 
-        ls -lh /tmp/Archive-A.tar.gz
-        echo "--- content ---"
-        head -c 500 /tmp/Archive-A.tar.gz
-        echo
-        echo "--- end ---"
 
-        echo "=== Archive-B.tar.gz ==="
-        sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-          scp -q \
-          -o StrictHostKeyChecking=no \
-          -o UserKnownHostsFile=/dev/null \
-          u446960-sub2@u446960-sub2.your-storagebox.de:Archive-B.tar.gz \
-          /tmp/Archive-B.tar.gz
-
-        ls -lh /tmp/Archive-B.tar.gz
-        echo "--- content ---"
-        head -c 500 /tmp/Archive-B.tar.gz
-        echo
-        echo "--- end ---"
-
-    - name: Check DB
-      run: |
-        height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
-        day_of_week=`date +%u`
-        end=$(( day_of_week == 7 ? 0 : height - 100000 ))  # run whole dataset on Sunday
-        echo "Checking: $height -> $end"
-        QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh \
-          --check_db=True \
-          --check_db_rblock_batch=100 \
-          --check_db_rblock_from=$height \
-          --check_db_rblock_to=$end \
-          --cluster_config `pwd`/mainnet/singularity/cluster_config_template_8nodes.json
+      - name: Check DB
+        run: |
+          height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
+          day_of_week=`date +%u`
+          end=$(( day_of_week == 7 ? 0 : height - 100000 ))  # run whole dataset on Sunday
+          echo "Checking: $height -> $end"
+          QKC__QUARKCHAIN__DISABLE_POW_CHECK=True ./run_cluster.sh \
+            --check_db=True \
+            --check_db_rblock_batch=100 \
+            --check_db_rblock_from=$height \
+            --check_db_rblock_to=$end \
+            --cluster_config `pwd`/mainnet/singularity/cluster_config_template_8nodes.json
