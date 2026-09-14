@@ -21,124 +21,18 @@ jobs:
 
       - name: Install Dependencies and Build
         run: |
-          apt update && apt upgrade -y && apt install -y sshpass openssh-client
+          apt update && apt upgrade -y && apt install sshpass -y
           PYTHONPATH=/code/pyquarkchain pip3 install -e .
           cd qkchash && make clean && make
 
       - name: Download DB snapshot
         run: |
           mkdir -p quarkchain/cluster/qkc-data
-          
-          sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-            scp \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            u446960-sub2@u446960-sub2.your-storagebox.de:VERSION \
-            VERSION
-          
-          fileName=$(cat VERSION)
-          
-          echo "=== VERSION content ==="
-          cat VERSION
-          echo
-          echo "=== resolved filename ==="
-          printf '<%s>\n' "$fileName"
-          
-          sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-            scp \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            u446960-sub2@u446960-sub2.your-storagebox.de:"$fileName" \
-            data.tar.gz
-
-          echo "=== data.tar.gz size ==="
-          ls -lh data.tar.gz
-          
-          echo "=== file type ==="
-          file data.tar.gz || true
-          
-          echo "=== gzip validity ==="
-          gzip -t data.tar.gz || true
-          
-          echo "=== first 64 bytes (hex) ==="
-          head -c 64 data.tar.gz | od -An -tx1
-          
+          sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:VERSION-PY VERSION
+          fileName=`cat VERSION`
+          sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:$fileName data.tar.gz
           tar xvfz data.tar.gz
-          rm data.tar.gz
-          mv data quarkchain/cluster/qkc-data/mainnet
-
-      - name: Debug StorageBox snapshots
-        run: |
-          set +e
-          
-          HOST="u446960-sub2@u446960-sub2.your-storagebox.de"
-          PASS="${{ secrets.SBOX_SA_PASSWORD }}"
-          
-          echo "========================================"
-          echo "StorageBox snapshot debug"
-          echo "========================================"
-          
-          echo
-          echo "=== VERSION ==="
-          sshpass -p "$PASS" \
-            scp -q \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            "$HOST:VERSION" \
-            /tmp/VERSION
-          
-          cat /tmp/VERSION
-          echo
-          
-          echo
-          echo "=== SFTP root listing ==="
-          printf 'ls -l\n' |
-            sshpass -p "$PASS" \
-            sftp -q \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            "$HOST"
-          
-          echo
-          echo "=== SFTP public-data listing ==="
-          printf 'ls -l public-data\n' |
-            sshpass -p "$PASS" \
-            sftp -q \
-            -o StrictHostKeyChecking=no \
-            -o UserKnownHostsFile=/dev/null \
-            "$HOST"
-          
-          echo
-          echo "=== Check candidate paths ==="
-          
-          for path in \
-            "Archive-A.tar.gz" \
-            "Archive-B.tar.gz" \
-            "Archive-A.py.tar.gz" \
-            "Archive-B.py.tar.gz" \
-            "public-data/Archive-A.tar.gz" \
-            "public-data/Archive-B.tar.gz" \
-            "public-data/Archive-A.py.tar.gz" \
-            "public-data/Archive-B.py.tar.gz"
-          do
-            echo
-            echo "--- $path ---"
-          
-            printf 'ls -l "%s"\n' "$path" |
-              sshpass -p "$PASS" \
-              sftp -q \
-              -o StrictHostKeyChecking=no \
-              -o UserKnownHostsFile=/dev/null \
-              "$HOST"
-          
-            echo "exit code: $?"
-          done
-          
-          echo
-          echo "========================================"
-          echo "Debug finished"
-          echo "========================================"
-
+          rm data.tar.gz && mv data quarkchain/cluster/qkc-data/mainnet
 
       - name: Check DB
         run: |
