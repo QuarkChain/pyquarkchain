@@ -68,10 +68,11 @@ jobs:
           mv data quarkchain/cluster/qkc-data/mainnet
 
       - name: Debug StorageBox snapshots
-        if: always()
         run: |
+          set +e
+          
           HOST="u446960-sub2@u446960-sub2.your-storagebox.de"
-          SFTP_OPTS="-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null"
+          PASS="${{ secrets.SBOX_SA_PASSWORD }}"
           
           echo "========================================"
           echo "StorageBox snapshot debug"
@@ -79,82 +80,64 @@ jobs:
           
           echo
           echo "=== VERSION ==="
-          cat VERSION 2>/dev/null || true
-          
-          echo
-          echo "=== 1. Root: Archive-A.tar.gz ==="
-          sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-            sftp \
-            -q \
-            $SFTP_OPTS \
-            "$HOST" <<'EOF' || true
-            stat Archive-A.tar.gz
-            EOF
-          
-            echo
-          echo "=== 2. Root: Archive-B.tar.gz ==="
-            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-            sftp \
-            -q \
-            $SFTP_OPTS \
-            "$HOST" <<'EOF' || true
-            stat Archive-B.tar.gz
-            EOF
-          
-            echo
-          echo "=== 3. public-data: Archive-A.tar.gz ==="
-            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-            sftp \
-            -q \
-            $SFTP_OPTS \
-            "$HOST" <<'EOF' || true
-            stat public-data/Archive-A.tar.gz
-            EOF
-          
-            echo
-          echo "=== 4. public-data: Archive-B.tar.gz ==="
-            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-            sftp \
-            -q \
-            $SFTP_OPTS \
-            "$HOST" <<'EOF' || true
-            stat public-data/Archive-B.tar.gz
-            EOF
-          
-            echo
-          echo "=== 5. public-data: Archive-A.py.tar.gz ==="
-            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-            sftp \
-            -q \
-            $SFTP_OPTS \
-            "$HOST" <<'EOF' || true
-            stat public-data/Archive-A.py.tar.gz
-            EOF
-          
-            echo
-          echo "=== 6. Known-good file: public-data/Archive-B.py.tar.gz ==="
-            echo "This is the file verified by the maintainer."
-            echo "It will be downloaded last."
-          
-            rm -f /tmp/Archive-B.py.tar.gz
-          
-            sshpass -p "${{ secrets.SBOX_SA_PASSWORD }}" \
-            scp \
+          sshpass -p "$PASS" \
+            scp -q \
             -o StrictHostKeyChecking=no \
             -o UserKnownHostsFile=/dev/null \
-            u446960-sub2@u446960-sub2.your-storagebox.de:public-data/Archive-B.py.tar.gz \
-            /tmp/Archive-B.py.tar.gz
+            "$HOST:VERSION" \
+            /tmp/VERSION
           
-            echo
-            echo "=== Known-good file result ==="
-            ls -lh /tmp/Archive-B.py.tar.gz
-            stat -c '%s bytes' /tmp/Archive-B.py.tar.gz
-          echo "Expected size from maintainer: 1139212288 bytes"
+          cat /tmp/VERSION
+          echo
           
+          echo
+          echo "=== SFTP root listing ==="
+          printf 'ls -l\n' |
+            sshpass -p "$PASS" \
+            sftp -q \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            "$HOST"
+          
+          echo
+          echo "=== SFTP public-data listing ==="
+          printf 'ls -l public-data\n' |
+            sshpass -p "$PASS" \
+            sftp -q \
+            -o StrictHostKeyChecking=no \
+            -o UserKnownHostsFile=/dev/null \
+            "$HOST"
+          
+          echo
+          echo "=== Check candidate paths ==="
+          
+          for path in \
+            "Archive-A.tar.gz" \
+            "Archive-B.tar.gz" \
+            "Archive-A.py.tar.gz" \
+            "Archive-B.py.tar.gz" \
+            "public-data/Archive-A.tar.gz" \
+            "public-data/Archive-B.tar.gz" \
+            "public-data/Archive-A.py.tar.gz" \
+            "public-data/Archive-B.py.tar.gz"
+          do
             echo
-            echo "========================================"
-            echo "Debug finished"
-            echo "========================================"
+            echo "--- $path ---"
+          
+            printf 'ls -l "%s"\n' "$path" |
+              sshpass -p "$PASS" \
+              sftp -q \
+              -o StrictHostKeyChecking=no \
+              -o UserKnownHostsFile=/dev/null \
+              "$HOST"
+          
+            echo "exit code: $?"
+          done
+          
+          echo
+          echo "========================================"
+          echo "Debug finished"
+          echo "========================================"
 
 
       - name: Check DB
