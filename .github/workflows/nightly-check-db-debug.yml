@@ -25,40 +25,17 @@ jobs:
           PYTHONPATH=/code/pyquarkchain pip3 install -e .
           cd qkchash && make clean && make
 
-      # Download step skipped for debugging (takes >3h). DB should persist in workspace from previous run.
-      # - name: Download DB snapshot
-      #   run: |
-      #     mkdir -p quarkchain/cluster/qkc-data
-      #     sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:VERSION-PY VERSION
-      #     fileName=`cat VERSION`
-      #     sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:$fileName data.tar.gz
-      #     tar xvfz data.tar.gz
-      #     rm data.tar.gz && mv mainnet quarkchain/cluster/qkc-data/mainnet
-
-      - name: Debug environment
+      - name: Download DB snapshot
         run: |
-          echo "=== pwd ==="
-          pwd
-          echo "=== GITHUB_WORKSPACE=${{ github.workspace }} ==="
-          echo "=== workspace root listing ==="
-          ls -la
-          echo "=== repo mainnet/ (tracked by git) ==="
-          ls -la mainnet/ 2>&1 || true
-          ls -la mainnet/singularity/ 2>&1 || true
-          echo "=== quarkchain/cluster/qkc-data ==="
-          ls -la quarkchain/cluster/qkc-data/ 2>&1 || true
-          echo "=== quarkchain/cluster/qkc-data/mainnet ==="
-          ls -la quarkchain/cluster/qkc-data/mainnet/ 2>&1 || true
-          echo "=== master.db presence ==="
-          ls quarkchain/cluster/qkc-data/mainnet/master.db/ 2>&1 | head -5 || true
-          du -sh quarkchain/cluster/qkc-data/mainnet/ 2>&1 || true
-          echo "=== find cluster_config_template.json ==="
-          find . -name "cluster_config_template*.json" -not -path "./.git/*" 2>/dev/null
+          mkdir -p quarkchain/cluster/qkc-data
+          sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:VERSION-PY VERSION
+          fileName=`cat VERSION`
+          sshpass -p ${{ secrets.SBOX_SA_PASSWORD }} scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null u446960-sub2@u446960-sub2.your-storagebox.de:$fileName data.tar.gz
+          tar xzf data.tar.gz -C quarkchain/cluster/qkc-data
+          rm data.tar.gz
 
       - name: Check DB
         run: |
-          echo "=== db_browser raw output (stderr NOT swallowed) ==="
-          python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip
           height=$(python quarkchain/tools/db_browser.py --cluster_config=`pwd`/mainnet/singularity/cluster_config_template.json root_print_tip 2> /dev/null | grep "height" | awk "{print \$2}" | sed "s/,$//")
           day_of_week=`date +%u`
           end=$(( day_of_week == 7 ? 0 : height - 100000 ))  # run whole dataset on Sunday
