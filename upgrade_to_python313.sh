@@ -77,6 +77,18 @@ make altinstall
 "$PYTHON_PREFIX/bin/python3.13" --version
 "$PYTHON_PREFIX/bin/python3.13" -m venv "$VENV_DIR"
 
+# Activate Python 3.13 for the rest of this installer process.
+# This cannot modify the parent shell that launched this script.
+source "$VENV_DIR/bin/activate"
+
+# Automatically activate the same environment for future interactive root
+# shells, including: docker exec -it <container> bash
+ACTIVATE_LINE="source $VENV_DIR/bin/activate"
+touch /root/.bashrc
+if ! grep -qxF "$ACTIVATE_LINE" /root/.bashrc; then
+  printf '\n%s\n' "$ACTIVATE_LINE" >>/root/.bashrc
+fi
+
 "$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
 
 if [[ ! -f "$REPO_DIR/requirements.txt" ]]; then
@@ -95,7 +107,8 @@ echo "Python 3.13 environment installed successfully:"
 echo "  Python: $VENV_DIR/bin/python"
 echo "  Pip:    $VENV_DIR/bin/pip"
 echo "  Repo:   $REPO_DIR"
+echo "  Bash:   Python 3.13 will be activated automatically in future interactive shells"
 echo
 echo "Run the project with:"
-echo "  source $VENV_DIR/bin/activate"
+echo "  source $VENV_DIR/bin/activate  # needed once in the shell that launched this installer"
 echo "  cd $REPO_DIR"
