@@ -12,7 +12,11 @@ from quarkchain.config import BaseConfig, ChainConfig, QuarkChainConfig
 from quarkchain.core import Address
 from quarkchain.utils import Logger, check, is_p2, int_left_most_bit
 
-DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
+try:
+    DEFAULT_HOST = socket.gethostbyname(socket.gethostname())
+except socket.gaierror:
+    # A local cluster should still work when macOS cannot resolve its hostname.
+    DEFAULT_HOST = "127.0.0.1"
 
 
 def update_genesis_alloc(cluser_config):
