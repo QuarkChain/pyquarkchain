@@ -1,20 +1,29 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
 
+# In-place Python upgrade for a pyquarkchain mainnet1.6.2 Docker container.
+# Run this as root after updating the repository, while the node process is
+# stopped. See mainnet/singularity/README.md for the complete procedure.
+#
+# Usage:
+#   bash ./upgrade_to_python313.sh [/code/pyquarkchain]
+#   source /opt/venvs/py313/bin/activate
+
 usage() {
-  echo "Usage: $0 [python-version] [repo-dir]"
-  echo "Example: $0 3.13.7 /code/pyquarkchain"
+  echo "Upgrade a pyquarkchain mainnet1.6.2 container to Python 3.13."
+  echo "Usage: $0 [repo-dir]"
+  echo "Example: $0 /code/pyquarkchain"
 }
 
-if [[ $# -gt 2 ]]; then
+if [[ $# -gt 1 ]]; then
   usage
   exit 2
 fi
 
-PYTHON_VERSION="${1:-3.13.7}"
-REPO_DIR="${2:-/code/pyquarkchain}"
+PYTHON_VERSION="3.13.7"
+REPO_DIR="${1:-/code/pyquarkchain}"
 PYTHON_PREFIX="/opt/python-${PYTHON_VERSION}"
-VENV_DIR="/opt/venvs/pyquarkchain-py313"
+VENV_DIR="/opt/venvs/py313"
 
 if [[ "$(id -u)" -ne 0 ]]; then
   echo "Error: run this script as root inside the container." >&2
@@ -77,6 +86,15 @@ make altinstall
 "$PYTHON_PREFIX/bin/python3.13" --version
 "$PYTHON_PREFIX/bin/python3.13" -m venv "$VENV_DIR"
 
+"$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
+
+if [[ ! -f "$REPO_DIR/requirements.txt" ]]; then
+  echo "Error: requirements.txt not found: $REPO_DIR/requirements.txt" >&2
+  exit 1
+fi
+
+"$VENV_DIR/bin/python" -m pip install -r "$REPO_DIR/requirements.txt"
+
 # Activate Python 3.13 for the rest of this installer process.
 # This cannot modify the parent shell that launched this script.
 source "$VENV_DIR/bin/activate"
@@ -88,15 +106,6 @@ touch /root/.bashrc
 if ! grep -qxF "$ACTIVATE_LINE" /root/.bashrc; then
   printf '\n%s\n' "$ACTIVATE_LINE" >>/root/.bashrc
 fi
-
-"$VENV_DIR/bin/python" -m pip install --upgrade pip setuptools wheel
-
-if [[ ! -f "$REPO_DIR/requirements.txt" ]]; then
-  echo "Error: requirements.txt not found: $REPO_DIR/requirements.txt" >&2
-  exit 1
-fi
-
-"$VENV_DIR/bin/python" -m pip install -r "$REPO_DIR/requirements.txt"
 
 rm -rf "$BUILD_DIR"
 apt-get clean
