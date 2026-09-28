@@ -48,3 +48,38 @@ unset GITHUB_TOKEN
 
 `GIT_TAG` may be a branch, tag, or commit SHA. Use a full commit SHA to pin the
 source revision.
+
+## Upgrade an existing mainnet node
+
+Use the latest Docker image when the node database is mounted from the host. If
+a `mainnet1.6.2` node stores its database only inside the container, use the
+following steps to upgrade it in place. Stop the node process, but keep the
+container running throughout the upgrade.
+
+1. Open a shell in the container:
+
+   ```bash
+   docker exec -it <container-name> bash
+   ```
+
+2. Update the code:
+
+   ```bash
+   cd /code/pyquarkchain
+   git checkout master
+   git pull
+   ```
+
+3. Upgrade to Python 3.13 and activate the new environment:
+
+   ```bash
+   bash ./upgrade_to_python313.sh /code/pyquarkchain
+   source /opt/venvs/py313/bin/activate
+   python --version
+   ```
+
+4. Restart the node:
+
+   ```bash
+   ./run_cluster.sh
+   ```
