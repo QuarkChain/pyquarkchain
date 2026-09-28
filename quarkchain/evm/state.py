@@ -192,7 +192,7 @@ class TokenBalances:
     def reset(self, journal):
         pre_balance = self._balances
         self._balances = {}
-        journal.append(lambda: setattr(self, "_balance", pre_balance))
+        journal.append(lambda: setattr(self, "_balances", pre_balance))
         pre_token_trie = self.token_trie
         self.token_trie = None
         journal.append(lambda: setattr(self, "token_trie", pre_token_trie))

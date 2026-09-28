@@ -229,11 +229,19 @@ def test_reset_balance_in_trie_and_revert():
     b.set_balance(journal, token_id_encode("Q" + chr(65 + 0)), 1)
     assert b.balance(999) == 999
     assert b.balance(token_id_encode("Q" + chr(65 + 0))) == 1
+    before_reset = b.to_dict()
+    snapshot = len(journal)
     b.reset(journal)
     assert b.is_blank()
     assert b.to_dict() == {}
-    for op in journal:
-        op()
+    # Undo in the same LIFO order as State.revert(), first only the reset.
+    while len(journal) > snapshot:
+        journal.pop()()
+    assert b.to_dict() == before_reset
+
+    # Then undo the balance changes made before the reset.
+    while journal:
+        journal.pop()()
     assert not b.is_blank()
     assert b.to_dict() == mapping
     assert b._balances != {}
