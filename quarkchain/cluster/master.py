@@ -92,6 +92,7 @@ from quarkchain.utils import Logger, check
 from quarkchain.cluster.cluster_config import ClusterConfig
 from quarkchain.constants import (
     SYNC_TIMEOUT,
+    SYNC_MINOR_BLOCK_LIST_TIMEOUT,
     ROOT_BLOCK_BATCH_SIZE,
     ROOT_BLOCK_HEADER_LIST_LIMIT,
 )
@@ -313,7 +314,20 @@ class SyncTask:
             )
             future_list.append(future)
 
-        result_list = await asyncio.gather(*future_list)
+        timeout = (
+            SYNC_MINOR_BLOCK_LIST_TIMEOUT
+            + SYNC_TIMEOUT
+        )
+        try:
+            result_list = await asyncio.wait_for(
+                asyncio.gather(*future_list), timeout
+            )
+        except asyncio.TimeoutError as e:
+            raise RuntimeError(
+                "Timed out syncing minor blocks from slaves after {} seconds".format(
+                    timeout
+                )
+            ) from e
         for result in result_list:
             if result is Exception:
                 raise RuntimeError(

@@ -1,6 +1,6 @@
 import asyncio
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from eth_keys.datatypes import PrivateKey
 
@@ -10,6 +10,7 @@ from quarkchain.cluster.p2p_commands import (
     GetMinorBlockHeaderListWithSkipRequest,
     Direction,
 )
+from quarkchain.cluster.master import SyncTask
 from quarkchain.cluster.shard import Shard
 from quarkchain.cluster.tests.test_utils import (
     create_transfer_transaction,
@@ -2708,3 +2709,48 @@ class TestAddBlockCancellation(unittest.IsolatedAsyncioTestCase):
 
         result = await asyncio.wait_for(waiter_task, timeout=5.0)
         self.assertFalse(result, "Waiter for an interrupted block should return False")
+
+    async def test_cancelled_add_block_list_for_sync_cleans_up_futures(self):
+        shard = self._make_shard()
+        block = _make_finalized_shard_block(shard.state)
+        block_hash = block.header.get_hash()
+        broadcast_started = asyncio.Event()
+
+        async def hanging_broadcast(*args, **kwargs):
+            broadcast_started.set()
+            await asyncio.sleep(9999)
+
+        shard.slave.batch_broadcast_xshard_tx_list = hanging_broadcast
+        task = asyncio.create_task(shard.add_block_list_for_sync([block]))
+        await broadcast_started.wait()
+        task.cancel()
+        with self.assertRaises(asyncio.CancelledError):
+            await task
+
+        self.assertNotIn(block_hash, shard.add_block_futures)
+
+
+class TestRootSyncTimeout(unittest.IsolatedAsyncioTestCase):
+    async def test_sync_minor_blocks_times_out_waiting_for_slave(self):
+        task = SyncTask.__new__(SyncTask)
+        task.root_state = MagicMock()
+        task.root_state.db.contain_minor_block_by_hash.return_value = False
+        task.master_server = MagicMock()
+        task.peer = MagicMock()
+
+        pending_response = asyncio.get_running_loop().create_future()
+        slave_connection = MagicMock()
+        slave_connection.write_rpc_request.return_value = pending_response
+        task.master_server.get_slave_connection.return_value = slave_connection
+
+        header = MagicMock()
+        header.get_hash.return_value = bytes(32)
+
+        with patch("quarkchain.cluster.master.SYNC_TIMEOUT", 0):
+            with patch("quarkchain.cluster.master.SYNC_MINOR_BLOCK_LIST_TIMEOUT", 0.01):
+                with self.assertRaisesRegex(
+                    RuntimeError, "Timed out syncing minor blocks from slaves"
+                ):
+                    await task._SyncTask__sync_minor_blocks([header])
+
+        self.assertTrue(pending_response.cancelled())
