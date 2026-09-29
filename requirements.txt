@@ -23,7 +23,7 @@ websockets==16.0
 async-upnp-client==0.47.0
 pytest==9.1.0
 pytest-asyncio==1.4.0
-cryptography==46.0.7
+cryptography==50.0.0
 rlp==4.1.0
 
 # pyethapp/accounts.py dependency
