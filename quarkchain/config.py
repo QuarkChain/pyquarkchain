@@ -335,6 +335,7 @@ class QuarkChainConfig(BaseConfig):
     ENABLE_NON_RESERVED_NATIVE_TOKEN_TIMESTAMP = None
     ENABLE_GENERAL_NATIVE_TOKEN_TIMESTAMP = None
     ENABLE_POSW_STAKING_DECAY_TIMESTAMP = None
+    ENABLE_ROOT_POSW_STAKING_DECAY_TIMESTAMP = None
 
     MIN_TX_POOL_GAS_PRICE = 10 ** 9  # lowest gas price to accept, default 1 Gwei
     MIN_MINING_GAS_PRICE = 10 ** 9  # lowest gas price to pack tx for mining, 1 Gwei
