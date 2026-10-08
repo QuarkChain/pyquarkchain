@@ -1,7 +1,7 @@
 #!/bin/bash
 
 target_nofile_limit=1048576
-recommended_nofile_limit=100000
+recommended_nofile_limit=131072
 hard_nofile_limit=$(ulimit -Hn 2>/dev/null)
 
 if [[ "$hard_nofile_limit" =~ ^[0-9]+$ ]]; then
