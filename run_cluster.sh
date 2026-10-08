@@ -5,6 +5,7 @@ recommended_nofile_limit=100000
 hard_nofile_limit=$(ulimit -Hn 2>/dev/null)
 
 if [[ "$hard_nofile_limit" =~ ^[0-9]+$ ]]; then
+    echo "Hard nofile limit: $hard_nofile_limit"
     if (( hard_nofile_limit < target_nofile_limit )); then
         target_nofile_limit=$hard_nofile_limit
     fi
