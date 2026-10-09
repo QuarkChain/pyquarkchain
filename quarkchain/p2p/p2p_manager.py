@@ -277,7 +277,10 @@ class SecurePeer(Peer):
 
     def abort_in_flight_rpcs(self):
         for rpc_id, future in self.rpc_future_map.items():
-            future.set_exception(RuntimeError("{}: connection abort".format(self.name)))
+            if not future.done():
+                future.set_exception(
+                    RuntimeError("{}: connection abort".format(self.name))
+                )
         AbstractConnection.aborted_rpc_count += len(self.rpc_future_map)
         self.rpc_future_map.clear()
 

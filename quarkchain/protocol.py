@@ -1,4 +1,5 @@
 import asyncio
+from collections import deque
 from enum import Enum
 
 from quarkchain.core import Serializable
@@ -30,6 +31,7 @@ class Metadata(Serializable):
 class AbstractConnection:
     conn_id = 0
     aborted_rpc_count = 0
+    _MAX_CANCELLED_RPC_IDS = 1024
 
     @classmethod
     def __get_next_connection_id(cls):
@@ -52,6 +54,8 @@ class AbstractConnection:
         self.peer_rpc_id = -1
         self.rpc_id = 0  # 0 is for non-rpc (fire-and-forget)
         self.rpc_future_map = dict()
+        self._cancelled_rpc_ids = set()
+        self._cancelled_rpc_id_order = deque()
         self.active_event = asyncio.Event()
         self.close_event = asyncio.Event()
         self.metadata_class = metadata_class
@@ -110,9 +114,31 @@ class AbstractConnection:
         self.rpc_id += 1
         rpc_id = self.rpc_id
         self.rpc_future_map[rpc_id] = rpc_future
+        rpc_future.add_done_callback(
+            lambda future, rpc_id=rpc_id: self.__rpc_future_done(rpc_id, future)
+        )
 
         self.write_command(op, cmd, rpc_id, metadata)
         return rpc_future
+
+    def __rpc_future_done(self, rpc_id, future):
+        if not future.cancelled():
+            return
+
+        # A timeout/cancellation can happen without a response ever arriving.
+        # Remove the future immediately so a dead peer cannot grow this map.
+        if self.rpc_future_map.get(rpc_id) is not future:
+            return
+        del self.rpc_future_map[rpc_id]
+
+        # The remote handler may still send a response after the local waiter
+        # has timed out. Remember a bounded number of such IDs so that response
+        # is ignored instead of being treated as a protocol violation.
+        self._cancelled_rpc_ids.add(rpc_id)
+        self._cancelled_rpc_id_order.append(rpc_id)
+        if len(self._cancelled_rpc_id_order) > self._MAX_CANCELLED_RPC_IDS:
+            expired_rpc_id = self._cancelled_rpc_id_order.popleft()
+            self._cancelled_rpc_ids.discard(expired_rpc_id)
 
     def __write_rpc_response(self, op, cmd, rpc_id, metadata):
         self.write_command(op, cmd, rpc_id, metadata)
@@ -152,12 +178,14 @@ class AbstractConnection:
             await self.__handle_rpc_request(op, cmd, rpc_id, metadata)
         else:
             # Check if it is a valid RPC response
-            if rpc_id not in self.rpc_future_map:
+            future = self.rpc_future_map.pop(rpc_id, None)
+            if future is None:
+                if rpc_id in self._cancelled_rpc_ids:
+                    self._cancelled_rpc_ids.discard(rpc_id)
+                    return
                 raise RuntimeError(
                     "{}: unexpected rpc response {}".format(self.name, rpc_id)
                 )
-            future = self.rpc_future_map[rpc_id]
-            del self.rpc_future_map[rpc_id]
             if not future.cancelled():
                 future.set_result((op, cmd, rpc_id))
 

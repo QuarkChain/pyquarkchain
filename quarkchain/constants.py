@@ -23,6 +23,9 @@ ROOT_BLOCK_HEADER_LIST_LIMIT = 500
 
 SYNC_TIMEOUT = 30
 
+# Maximum time spent processing a batch of minor blocks after download.
+SYNC_MINOR_BLOCK_LIST_TIMEOUT = 300
+
 BLOCK_UNCOMMITTED = 0  # The other slaves and the master may not have the block info
 BLOCK_COMMITTING = 1  # The block info is propagating to other slaves and the master
 BLOCK_COMMITTED = 2  # The other slaves and the master have received the block info
